@@ -46,25 +46,22 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn eval(&self) -> i32 {
+    pub fn into_int(&self) -> i32 {
         match self {
-            Expr::Literal(literal) => literal.eval(),
-            //Expr::Identifier(identifier) => identifier,
-            Expr::BinaryOp(operation, left, right) => {
-                let left_eval = left.eval();
-                let right_eval = right.eval();
-                match operation {
-                    Operation::Plus => left_eval + right_eval,
-                    Operation::Minus => left_eval - right_eval,
-                    Operation::Star => left_eval * right_eval,
-                    Operation::Slash => left_eval / right_eval,
-                    _ => unimplemented!()
-                    //Operation::Compare(symbol) => format!("{} {} {}", left_eval, symbol.to_string(), right_eval)
+            Expr::Literal(Literal::Int(i)) => *i,
+            Expr::Identifier(_name) => unimplemented!(),
+            Expr::BinaryOp(op, left, right) => {
+                match op {
+                    Operation::Plus  => left.into_int() + right.into_int(),
+                    Operation::Minus => left.into_int() - right.into_int(),
+                    Operation::Star  => left.into_int() * right.into_int(),
+                    Operation::Slash => left.into_int() / right.into_int(),
+                    _ => panic!("Expression `{:?} {:?} {:?}` cannot be evaluated into an integer", left, op, right)
                 }
-            }
+            },
+            Expr::UnaryOp(_op, expr) => unimplemented!(),
             
-            Expr::Display(expr) => expr.eval(),
-            _ => unimplemented!()
+            _ => panic!("Type`{:?}` cannot be evaluated into an integer", self)
         }
     }
 }

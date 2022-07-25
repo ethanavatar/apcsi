@@ -1,1 +1,2 @@
-DISPLAY 1 + 1
+a <- (1 + 1)
+DISPLAY (a + 1)

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::lexer::Symbols;
 
 #[derive(Debug, PartialEq)]
@@ -20,10 +22,13 @@ pub enum Literal {
 }
 
 impl Literal {
-    pub fn eval(&self) -> i32 {
+    pub fn into_string(&self, scope: &HashMap<String, i32>) -> String {
         match self {
-            Literal::Int(i) => *i,
-            _ => 0
+            Literal::Int(i) => i.to_string(),
+            Literal::Float(f) => f.to_string(),
+            Literal::String(s) => String::from(s.clone()),
+            Literal::Bool(b) => b.to_string(),
+            Literal::List(l) => l.into_iter().map(|e| e.into_string(scope)).collect::<Vec<String>>().join(", ")
         }
     }
 }
@@ -46,21 +51,41 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn into_int(&self) -> i32 {
+    pub fn into_string(&self, scope: &HashMap<String, i32>) -> String {
+        match self {
+            Expr::Literal(l) => l.into_string(scope),
+            Expr::Identifier(i) => i.clone(),
+            Expr::BinaryOp(op, left, right) => {
+                let value = match op {
+                    Operation::Plus  => left.into_int(scope) + right.into_int(scope),
+                    Operation::Minus => left.into_int(scope) - right.into_int(scope),
+                    Operation::Star  => left.into_int(scope) * right.into_int(scope),
+                    Operation::Slash => left.into_int(scope) / right.into_int(scope),
+                    _ => panic!("Expression `{:?} {:?} {:?}` cannot be evaluated into an integer", left, op, right)
+                };
+                Expr::Literal(Literal::Int(value)).into_string(scope)
+            },
+            _ => panic!("Type {:?} cannot be evaluated into a string", self)
+        }
+    }
+    pub fn into_int(&self, scope: &HashMap<String, i32>) -> i32 {
         match self {
             Expr::Literal(Literal::Int(i)) => *i,
-            Expr::Identifier(_name) => unimplemented!(),
+            Expr::Identifier(_name) => {
+                let name = self.into_string(scope);
+                *scope.get(&name).unwrap()
+            },
             Expr::BinaryOp(op, left, right) => {
                 match op {
-                    Operation::Plus  => left.into_int() + right.into_int(),
-                    Operation::Minus => left.into_int() - right.into_int(),
-                    Operation::Star  => left.into_int() * right.into_int(),
-                    Operation::Slash => left.into_int() / right.into_int(),
+                    Operation::Plus  => left.into_int(scope) + right.into_int(scope),
+                    Operation::Minus => left.into_int(scope) - right.into_int(scope),
+                    Operation::Star  => left.into_int(scope) * right.into_int(scope),
+                    Operation::Slash => left.into_int(scope) / right.into_int(scope),
                     _ => panic!("Expression `{:?} {:?} {:?}` cannot be evaluated into an integer", left, op, right)
                 }
             },
             Expr::UnaryOp(_op, expr) => unimplemented!(),
-            
+            Expr::Group(expr) => expr.into_int(scope),
             _ => panic!("Type`{:?}` cannot be evaluated into an integer", self)
         }
     }
@@ -224,7 +249,7 @@ fn descend(tokens: &Vec<Symbols>, index: usize) -> Option<Expr> {
                 "DISPLAY" => {
                     let mut i2 = index + 1;
                     let mut operand: Option<Expr> = None;
-                    while match descend(&tokens, i2 + 1) {
+                    while match descend(&tokens, i2) {
                         Some(expr) => {operand = Some(expr); false},
                         None => {true}
                     } { i2 += 1; }
@@ -259,7 +284,7 @@ fn descend(tokens: &Vec<Symbols>, index: usize) -> Option<Expr> {
                     todo!()
                 }
                 _ => {
-                    None
+                    Some(Expr::Identifier(ident.clone()))
                 }
             }
         }

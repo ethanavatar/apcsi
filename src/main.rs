@@ -1,17 +1,26 @@
 mod lexer;
 mod parser;
 
+use std::collections::HashMap;
+
 use std::env;
 use std::fs::File;
 use std::io::Read;
 
 fn run_program(program: &Vec<parser::Expr>) {
+    let mut scope: HashMap<String, i32> = HashMap::new();
     let mut i = 0;
     while i < program.len() {
         match &program[i] {
             parser::Expr::Display(expr) => {
-                println!("{}", expr.into_int());
-            }
+                println!("{}", expr.into_int(&scope));
+            },
+            parser::Expr::BinaryOp(parser::Operation::Assign, left, right) => {
+                //println!("{:?} = {:?}", left, right);
+                let value = right.into_int(&scope);
+                let name = left.into_string(&scope);
+                scope.insert(name, value);
+            },
             _ => {}
         };
         i += 1;
@@ -26,7 +35,9 @@ fn main() {
     file.read_to_string(&mut contents).expect("Could not read file");
 
     let lex_result = lexer::lex(&contents);
+    //println!("{:?}", lex_result);
     let parse_result = parser::parse(lex_result);
+    //println!("{:?}", parse_result);
     run_program(&parse_result);
 }
 
@@ -86,6 +97,24 @@ mod tests {
                 parser::Operation::Assign,
                 Box::new(parser::Expr::Identifier("a".to_string())),
                 Box::new(parser::Expr::Literal(parser::Literal::Bool(true)))
+            )
+        );
+    }
+
+    #[test]
+    fn test_assign_expr() {
+        let lex_result = lexer::lex("a <- 1 + 2");
+        let parse_result = parser::parse(lex_result);
+        assert_eq!(
+            parse_result[0],
+            parser::Expr::BinaryOp(
+                parser::Operation::Assign,
+                Box::new(parser::Expr::Identifier("a".to_string())),
+                Box::new(parser::Expr::BinaryOp(
+                    parser::Operation::Plus,
+                    Box::new(parser::Expr::Literal(parser::Literal::Int(1))),
+                    Box::new(parser::Expr::Literal(parser::Literal::Int(2)))
+                ))
             )
         );
     }

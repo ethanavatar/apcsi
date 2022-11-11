@@ -8,6 +8,7 @@ pub trait StatementVisitor<R> {
     fn visit_procedure(&mut self, procedure: &Statement) -> R;
     fn visit_return(&mut self, return_statement: &Statement) -> R;
     fn visit_repeat(&mut self, while_statement: &Statement) -> R;
+    fn visit_variable_decl(&mut self, variable: &Statement) -> R;
 }
 
 #[derive(Debug, Clone)]
@@ -19,11 +20,12 @@ pub enum Statement {
     Procedure(Token, Vec<Token>, Vec<Box<Statement>>),
     Return(Token, Expr),
     Repeat(Expr, Box<Statement>),
+    VariableDecl(Token, Expr),
 }
 
 impl Statement {
-    //                                TODO: This type bound  \/  will cause issues later.
-    pub fn accept(&self, visitor: &mut impl StatementVisitor<()>) -> () {
+    //                                   TODO: This type bound  \/  will cause issues later.
+    pub fn accept<R>(&self, visitor: &mut impl StatementVisitor<R>) -> R {
         match self {
             s @ Statement::Block(_) => visitor.visit_block(s),
             s @ Statement::Expression(_) => visitor.visit_expression(s),
@@ -32,6 +34,7 @@ impl Statement {
             s @ Statement::Procedure(_, _, _) => visitor.visit_procedure(s),
             s @ Statement::Return(_, _) => visitor.visit_return(s),
             s @ Statement::Repeat(_, _) => visitor.visit_repeat(s),
+            s @ Statement::VariableDecl(_, _) => visitor.visit_variable_decl(s),
         }
     }
 }

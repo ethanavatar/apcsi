@@ -1,6 +1,7 @@
 use crate::statement::{Statement, StatementVisitor};
 use crate::{parser::Expr};
 use crate::{scanner::TokenId};
+use crate::environment::Environment;
 
 #[derive(Debug, Clone)]
 pub enum InterpreterValue {
@@ -15,16 +16,17 @@ pub trait ExprVisitor {
     fn visit_grouping(&mut self, expr: &Expr) -> InterpreterValue;
     fn visit_unary(&mut self, expr: &Expr) -> InterpreterValue;
     fn visit_binary(&mut self, expr: &Expr) -> InterpreterValue;
+    fn visit_identifier(&mut self, expr: &Expr) -> InterpreterValue;
 }
 
 pub struct Interpreter {
-
+    environment: Environment,
 }
 
 impl Interpreter {
-    pub fn new() -> Self {
+    pub fn new(env: Environment) -> Self {
         Self {
-
+            environment: env,
         }
     }
     
@@ -34,11 +36,14 @@ impl Interpreter {
 
     fn execute(&mut self, statement: &Statement) -> () {
         match statement {
-            Statement::Expression(expr) => {
-                expr.accept(self);
-            },
             display @ Statement::Display(_) => {
                 display.accept(self)
+            },
+            assign @ Statement::VariableDecl(_, _) => {
+                assign.accept(self)
+            },
+            Statement::Expression(expr) => {
+                expr.accept(self);
             },
             _ => ()
         }
@@ -89,7 +94,12 @@ impl Interpreter {
         match value {
             InterpreterValue::Number(n) => n.to_string(),
             InterpreterValue::String(s) => s.clone(),
-            InterpreterValue::Boolean(b) => b.to_string(),
+            InterpreterValue::Boolean(b) => {
+                match b {
+                    true => "TRUE".to_string(),
+                    false => "FALSE".to_string(),
+                }
+            },
             InterpreterValue::None => "None".to_string(),
         }
     }
@@ -329,6 +339,18 @@ impl ExprVisitor for Interpreter {
             _ => unreachable!("Expected binary expression but got {:?}", expr),
         }
     }
+
+    fn visit_identifier(&mut self, expr: &Expr) -> InterpreterValue {
+        if let Expr::Identifier(tok) = expr {
+            if let Some(value) = self.environment.get(&tok.lexeme) {
+                return value.clone()
+            } else {
+                panic!("Undefined variable `{}`", tok.lexeme);
+            }
+        } else {
+            unreachable!("Expected identifier expression but got {:?}", expr);
+        }
+    }
 }
 
 
@@ -359,4 +381,15 @@ impl StatementVisitor<()> for Interpreter {
     fn visit_procedure(&mut self, procedure: &Statement) -> () { unimplemented!() }
     fn visit_return(&mut self, return_statement: &Statement) -> () { unimplemented!() }
     fn visit_repeat(&mut self, while_statement: &Statement) -> () { unimplemented!() }
+    fn visit_variable_decl(&mut self, variable: &Statement) -> () {
+                
+        if let Statement::VariableDecl(name, expr) = variable {
+            let value = self.evaluate(expr);
+            self.environment.define(name.lexeme.clone().as_str(), value);
+
+        } else {
+            unreachable!("Expected variable statement but got {:?}", variable);
+        }
+
+    }
 }

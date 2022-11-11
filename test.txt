@@ -1,2 +1,6 @@
-a <- (1 + 1)
-DISPLAY (a + 1)
+DISPLAY TRUE
+DISPLAY 1 + 2 - 3
+
+str <- "Hello, Sailor!"
+
+DISPLAY str

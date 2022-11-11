@@ -13,15 +13,17 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(Token),
     Unary(Token, Box<Expr>),
+    Identifier(Token),
 }
 
 impl Expr {
-    pub fn accept<V: ExprVisitor>(&self, visitor: &mut V) -> InterpreterValue {
+    pub fn accept(&self, visitor: &mut impl ExprVisitor) -> InterpreterValue {
         match self {
             e @ Expr::Binary(_, _, _) => visitor.visit_binary(e),
             e @ Expr::Grouping(_) => visitor.visit_grouping(e),
             e @ Expr::Literal(_) => visitor.visit_literal(e),
             e @ Expr::Unary(_, _) => visitor.visit_unary(e),
+            e @ Expr::Identifier(_) => visitor.visit_identifier(e),
         }
     }
 }
@@ -35,6 +37,7 @@ impl Display for Expr {
             Expr::Grouping(expr) => write!(f, "(group {})", expr),
             Expr::Literal(token) => write!(f, "{}", token.lexeme),
             Expr::Unary(operator, expr) => write!(f, "({} {})", operator.lexeme, expr),
+            Expr::Identifier(token) => unimplemented!("Environment lookup for {}", token.lexeme),
         }
     }
 }
@@ -52,9 +55,56 @@ impl Parser {
     }
 
     pub fn parse(&mut self, out: &mut Vec<Statement>) {
+
+        //println!("Parsing tokens: {:?}", self.tokens);
+
         while !self.is_at_end() {
-            out.push(self.statement());
+            
+            let decl = self.declaration();
+            decl.is_some()
+                .then(|| out.push(decl.unwrap()));
         }
+    }
+
+    fn peek_next(&self) -> &Token {
+        &self.tokens[self.current + 1]
+    }
+
+    fn declaration(&mut self) -> Option<Statement> {
+
+        if self.match_token(&vec![TokenId::Newline]) {
+            return None;
+        }
+
+        let current = self.peek().clone();
+        if let tok @ Token { id: TokenId::Name(_), .. } = current {
+
+            let name = self.consume(tok.clone().id, "Expected variable name.").clone();
+
+            if !(self.peek_next().id == TokenId::Assign) {
+
+                self.consume(TokenId::Assign, "Expected '<-' after variable name.");
+                let decl = self.variable_declaration(&name);
+                return Some(decl)
+
+            }
+
+        }
+
+        Some(self.statement())
+
+        //self.synchronize();
+        //None
+    }
+
+    fn variable_declaration(&mut self, name: &Token) -> Statement {
+    
+        let initializer = self.expression();
+
+        let fail_msg = format!("Expected '\\n' after variable declaration. Found: {:?} instead", self.peek());
+        self.consume(TokenId::Newline, &fail_msg);
+
+        Statement::VariableDecl(name.clone(), initializer)
     }
 
     fn statement(&mut self) -> Statement {
@@ -73,7 +123,10 @@ impl Parser {
 
     fn display_statement(&mut self) -> Statement {
         let value = self.expression();
-        self.consume(TokenId::Newline, "Expected '\\n' after value.");
+        
+        let fail_msg = format!("Expected '\\n' or `Eof` after display statement. Found: {:?} instead", self.peek());
+        self.consume_either(&vec![TokenId::Newline, TokenId::Eof], &fail_msg);
+
         Statement::Display(value)
     }
 
@@ -81,7 +134,7 @@ impl Parser {
         self.advance();
 
         while !self.is_at_end() {
-            if self.previous().id == TokenId::Semicolon {
+            if self.previous().id == TokenId::Newline {
                 return;
             }
 
@@ -104,6 +157,10 @@ impl Parser {
     }
 
     fn peek(&self) -> &Token {
+        if self.current >= self.tokens.len() {
+            panic!("Parser::peek() called when current >= tokens.len()");
+        }
+
         &self.tokens[self.current]
     }
 
@@ -119,9 +176,6 @@ impl Parser {
     }
 
     fn check(&self, id: &TokenId) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
         self.peek().id == *id
     }
 
@@ -138,6 +192,15 @@ impl Parser {
     fn consume(&mut self, id: TokenId, message: &str) -> &Token {
         if self.check(&id) {
             return self.advance();
+        }
+        panic!("{}", message);
+    }
+
+    fn consume_either(&mut self, id: &Vec<TokenId>, message: &str) -> &Token {
+        for i in id {
+            if self.check(i) {
+                return self.advance();
+            }
         }
         panic!("{}", message);
     }
@@ -223,6 +286,10 @@ impl Parser {
             let expr = self.expression();
             self.consume(TokenId::RParen, "Expect ')' after expression.");
             return Expr::Grouping(Box::new(expr.clone()));
+        }
+
+        if let TokenId::Name(_) = self.peek().id {
+            return Expr::Identifier(self.advance().clone());
         }
 
         panic!("Expected expression.");

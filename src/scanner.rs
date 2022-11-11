@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenId {
     LParen, RParen, LBrace, RBrace, LBracket, RBracket,
@@ -67,7 +69,11 @@ impl Scanner {
     }
 
     fn peek(&self) -> char {
-        self.source.chars().nth(self.current).unwrap()
+        if self.is_at_end() {
+            '\0'
+        } else {
+            self.source.chars().nth(self.current).unwrap()
+        }
     }
 
     fn peek_next(&self) -> char {
@@ -210,6 +216,7 @@ impl Scanner {
                 self.line += 1;
                 Some(TokenId::Newline)
             },
+            '\0' => Some(TokenId::Eof),
             _ => None,
         };
 

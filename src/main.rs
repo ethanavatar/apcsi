@@ -9,6 +9,7 @@ use interpreter::Interpreter;
 
 mod statement;
 
+mod environment;
 
 use std::{path::PathBuf, io::Write, vec};
 
@@ -17,23 +18,17 @@ fn run_program(program: &str) {
     let mut tokens = vec![];
     scanner.scan_tokens(&mut tokens);
 
-    //println!("\nTokens:");
-    for token in tokens.clone() {
-        //println!("{:?}", token);
-    }
+    //println!("scanned tokens");
 
     let mut parser = Parser::new(tokens);
     let mut tree = vec![];
     parser.parse(&mut tree);
 
+    //println!("parsed tree");
 
-    //println!("\nExpression(s):");
-    for node in &tree {
-        //println!("{:?}", node);
-    }
+    let env = environment::Environment::new();
 
-    //println!("\nOutput:");
-    let mut interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new(env);
     for node in &tree {
         interpreter.interpret(node);
     }
@@ -60,5 +55,6 @@ fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
-    run_repl();
+    //run_repl();
+    run_file(PathBuf::from("test.txt")).unwrap();
 }

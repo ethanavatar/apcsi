@@ -4,15 +4,35 @@ use scanner::Scanner;
 mod parser;
 use parser::Parser;
 
-use std::{path::PathBuf, io::Write};
+mod interpreter;
+use interpreter::Interpreter;
+
+use std::{path::PathBuf, io::Write, vec};
 
 fn run_program(program: &str) {
     let mut scanner = Scanner::new(program);
     let mut tokens = vec![];
     scanner.scan_tokens(&mut tokens);
 
-    for token in tokens {
+    println!("\nTokens:");
+    for token in tokens.clone() {
         println!("{:?}", token);
+    }
+
+    let mut parser = Parser::new(tokens);
+    let mut tree = vec![];
+    parser.parse(&mut tree);
+
+
+    println!("\nExpression(s):");
+    for node in &tree {
+        println!("{}", node);
+    }
+
+    println!("\nOutput:");
+    let mut interpreter = Interpreter::new();
+    for node in &tree {
+        interpreter.interpret(node);
     }
 }
 

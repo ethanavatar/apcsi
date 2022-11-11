@@ -1,14 +1,42 @@
+use std::fmt::Display;
+
 use crate::scanner::Token;
 use crate::scanner::TokenId;
 
+use crate::interpreter::ExprVisitor;
+use crate::interpreter::InterpreterValue;
+
 #[derive(Debug, Clone)]
-enum Expr {
+pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Token),
     Unary(Token, Box<Expr>),
 }
 
+impl Expr {
+    pub fn accept<V: ExprVisitor>(&self, visitor: &mut V) -> InterpreterValue {
+        match self {
+            e @ Expr::Binary(_, _, _) => visitor.visit_binary(e),
+            e @ Expr::Grouping(_) => visitor.visit_grouping(e),
+            e @ Expr::Literal(_) => visitor.visit_literal(e),
+            e @ Expr::Unary(_, _) => visitor.visit_unary(e),
+        }
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::Binary(left, operator, right) => {
+                write!(f, "({} {} {})", operator.lexeme, left, right)
+            }
+            Expr::Grouping(expr) => write!(f, "(group {})", expr),
+            Expr::Literal(token) => write!(f, "{}", token.lexeme),
+            Expr::Unary(operator, expr) => write!(f, "({} {})", operator.lexeme, expr),
+        }
+    }
+}
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize
@@ -22,6 +50,34 @@ impl Parser {
         }
     }
 
+    pub fn parse(&mut self, out: &mut Vec<Expr>) {
+        while !self.is_at_end() {
+            out.push(self.expression());
+        }
+    }
+
+    pub fn synchronize(&mut self) -> () {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().id == TokenId::Semicolon {
+                return;
+            }
+
+            match self.peek().id {
+                TokenId::Procedure
+                | TokenId::ForEach
+                | TokenId::If
+                | TokenId::Repeat
+                | TokenId::Display
+                | TokenId::Return => return,
+                _ => (),
+            }
+
+            self.advance();
+        }
+    }
+
     fn is_at_end(&self) -> bool {
         self.peek().id == TokenId::Eof
     }
@@ -30,7 +86,7 @@ impl Parser {
         &self.tokens[self.current]
     }
 
-    fn previous(&self) -> &Token {
+    fn previous(&mut self) -> &Token {
         &self.tokens[self.current - 1]
     }
 
@@ -73,9 +129,9 @@ impl Parser {
         let mut expr = self.comparison();
 
         while self.match_token(&vec![TokenId::BangEqual, TokenId::Equal]) {
-            let operator = self.previous();
-            let right = self.comparison();
-            expr = Expr::Binary(Box::new(expr.clone()), operator.clone(), Box::new(right.clone()));
+            let operator = self.previous().clone();
+            let right = self.comparison().clone();
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
 
         expr
@@ -85,9 +141,9 @@ impl Parser {
         let mut expr = self.term();
 
         while self.match_token(&vec![TokenId::Greater, TokenId::GreaterEqual, TokenId::Less, TokenId::LessEqual]) {
-            let operator = self.previous();
-            let right = self.term();
-            expr = Expr::Binary(Box::new(expr.clone()), operator.clone(), Box::new(right.clone()));
+            let operator = self.previous().clone();
+            let right = self.term().clone();
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
 
         expr
@@ -97,9 +153,9 @@ impl Parser {
         let mut expr = self.factor();
 
         while self.match_token(&vec![TokenId::Minus, TokenId::Plus]) {
-            let operator = self.previous();
-            let right = self.factor();
-            expr = Expr::Binary(Box::new(expr.clone()), operator.clone(), Box::new(right.clone()));
+            let operator = self.previous().clone();
+            let right = self.factor().clone();
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
 
         expr
@@ -109,9 +165,9 @@ impl Parser {
         let mut expr = self.unary();
 
         while self.match_token(&vec![TokenId::Slash, TokenId::Star]) {
-            let operator = self.previous();
-            let right = self.unary();
-            expr = Expr::Binary(Box::new(expr.clone()), operator.clone(), Box::new(right.clone()));
+            let operator = self.previous().clone();
+            let right = self.unary().clone();
+            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
         }
 
         expr
@@ -119,9 +175,9 @@ impl Parser {
 
     fn unary(&mut self) -> Expr {
         if self.match_token(&vec![TokenId::Bang, TokenId::Minus]) {
-            let operator = self.previous();
-            let right = self.unary();
-            return Expr::Unary(operator.clone(), Box::new(right.clone()));
+            let operator = self.previous().clone();
+            let right = self.unary().clone();
+            return Expr::Unary(operator, Box::new(right));
         }
 
         self.primary()
@@ -149,11 +205,5 @@ impl Parser {
         }
 
         panic!("Expected expression.");
-    }
-
-    pub fn parse_tree(&mut self, out: &mut Vec<Expr>) {
-        while !self.is_at_end() {
-            out.push(self.expression());
-        }
     }
 }

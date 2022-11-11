@@ -1,3 +1,4 @@
+use crate::statement::{Statement, StatementVisitor};
 use crate::{parser::Expr};
 use crate::{scanner::TokenId};
 
@@ -27,9 +28,20 @@ impl Interpreter {
         }
     }
     
-    pub fn interpret(&mut self, expr: &Expr) -> () {
-        let value = self.evaluate(expr);
-        println!("{}", Self::to_string(&value));
+    pub fn interpret(&mut self, statement: &Statement) -> () {
+        self.execute(statement);
+    }
+
+    fn execute(&mut self, statement: &Statement) -> () {
+        match statement {
+            Statement::Expression(expr) => {
+                expr.accept(self);
+            },
+            display @ Statement::Display(_) => {
+                display.accept(self)
+            },
+            _ => ()
+        }
     }
 
     fn evaluate(&mut self, expr: &Expr) -> InterpreterValue {
@@ -317,4 +329,34 @@ impl ExprVisitor for Interpreter {
             _ => unreachable!("Expected binary expression but got {:?}", expr),
         }
     }
+}
+
+
+impl StatementVisitor<()> for Interpreter {
+    fn visit_expression(&mut self, statement: &Statement) -> () {
+        if let Statement::Expression(expr) = statement {
+            self.evaluate(expr);
+
+            return;
+        }
+        
+        unreachable!("Expected expression statement but got {:?}", statement);
+    }
+
+    fn visit_display(&mut self, statement: &Statement) -> () {
+        if let Statement::Display(expr) = statement {
+            let value = self.evaluate(expr);
+            println!("{}", Self::to_string(&value));
+
+            return;
+        }
+
+        unreachable!("Expected display statement but got {:?}", statement);
+    }
+
+    fn visit_block(&mut self, block: &Statement) -> () { unimplemented!() }
+    fn visit_if(&mut self, if_statement: &Statement) -> () { unimplemented!() }
+    fn visit_procedure(&mut self, procedure: &Statement) -> () { unimplemented!() }
+    fn visit_return(&mut self, return_statement: &Statement) -> () { unimplemented!() }
+    fn visit_repeat(&mut self, while_statement: &Statement) -> () { unimplemented!() }
 }

@@ -7,6 +7,9 @@ use parser::Parser;
 mod interpreter;
 use interpreter::Interpreter;
 
+mod statement;
+
+
 use std::{path::PathBuf, io::Write, vec};
 
 fn run_program(program: &str) {
@@ -14,9 +17,9 @@ fn run_program(program: &str) {
     let mut tokens = vec![];
     scanner.scan_tokens(&mut tokens);
 
-    println!("\nTokens:");
+    //println!("\nTokens:");
     for token in tokens.clone() {
-        println!("{:?}", token);
+        //println!("{:?}", token);
     }
 
     let mut parser = Parser::new(tokens);
@@ -24,12 +27,12 @@ fn run_program(program: &str) {
     parser.parse(&mut tree);
 
 
-    println!("\nExpression(s):");
+    //println!("\nExpression(s):");
     for node in &tree {
-        println!("{}", node);
+        //println!("{:?}", node);
     }
 
-    println!("\nOutput:");
+    //println!("\nOutput:");
     let mut interpreter = Interpreter::new();
     for node in &tree {
         interpreter.interpret(node);

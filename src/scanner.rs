@@ -19,6 +19,7 @@ pub enum TokenId {
     If, Else, 
     Display, Return,
   
+    Newline,
     Eof
 }
 
@@ -207,7 +208,7 @@ impl Scanner {
             ' ' | '\r' | '\t' => None,
             '\n' => {
                 self.line += 1;
-                None
+                Some(TokenId::Newline)
             },
             _ => None,
         };

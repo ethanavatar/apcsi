@@ -5,6 +5,7 @@ use crate::scanner::TokenId;
 
 use crate::interpreter::ExprVisitor;
 use crate::interpreter::InterpreterValue;
+use crate::statement::Statement;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -50,10 +51,30 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self, out: &mut Vec<Expr>) {
+    pub fn parse(&mut self, out: &mut Vec<Statement>) {
         while !self.is_at_end() {
-            out.push(self.expression());
+            out.push(self.statement());
         }
+    }
+
+    fn statement(&mut self) -> Statement {
+        if self.match_token(&vec![TokenId::Display]) {
+            return self.display_statement();
+        }
+
+        return self.expression_statement();
+    }
+
+    fn expression_statement(&mut self) -> Statement {
+        let expr = self.expression();
+        self.consume(TokenId::Newline, "Expected '\\n' after expression.");
+        Statement::Expression(expr)
+    }
+
+    fn display_statement(&mut self) -> Statement {
+        let value = self.expression();
+        self.consume(TokenId::Newline, "Expected '\\n' after value.");
+        Statement::Display(value)
     }
 
     pub fn synchronize(&mut self) -> () {

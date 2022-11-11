@@ -1,174 +1,41 @@
-mod lexer;
+mod scanner;
+use scanner::Scanner;
+
 mod parser;
+use parser::Parser;
 
-use std::collections::HashMap;
+use std::{path::PathBuf, io::Write};
 
-use std::env;
-use std::fs::File;
-use std::io::Read;
+fn run_program(program: &str) {
+    let mut scanner = Scanner::new(program);
+    let mut tokens = vec![];
+    scanner.scan_tokens(&mut tokens);
 
-fn run_program(program: &Vec<parser::Expr>) {
-    let mut scope: HashMap<String, i32> = HashMap::new();
-    let mut i = 0;
-    while i < program.len() {
-        match &program[i] {
-            parser::Expr::Display(expr) => {
-                println!("{}", expr.into_int(&scope));
-            },
-            parser::Expr::BinaryOp(parser::Operation::Assign, left, right) => {
-                //println!("{:?} = {:?}", left, right);
-                let value = right.into_int(&scope);
-                let name = left.into_string(&scope);
-                scope.insert(name, value);
-            },
-            _ => {}
-        };
-        i += 1;
+    for token in tokens {
+        println!("{:?}", token);
     }
+}
+
+fn run_repl() -> ! {
+    loop {
+        print!(">> ");
+        std::io::stdout().flush().unwrap();
+
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).unwrap();
+
+        run_program(&line);
+    }
+}
+
+fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let file_bytes = std::fs::read(path)?;
+    let file_string = std::str::from_utf8(&file_bytes)?;
+    run_program(file_string);
+
+    Ok(())
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let filename = &args[1];
-    let mut file = File::open(filename).expect("File not found");
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).expect("Could not read file");
-
-    let lex_result = lexer::lex(&contents);
-    //println!("{:?}", lex_result);
-    let parse_result = parser::parse(lex_result);
-    //println!("{:?}", parse_result);
-    run_program(&parse_result);
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[test]
-    fn test_assign_identifier() {
-        let lex_result = lexer::lex("a <- something");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Identifier("something".to_string()))
-            )
-        );
-    }
-
-    #[test]
-    fn test_assign_int_literal() {
-        let lex_result = lexer::lex("a <- 1");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Literal(parser::Literal::Int(1)))
-            )
-        );
-    }
-
-    #[test]
-    fn test_assign_string_literal() {
-        let lex_result = lexer::lex("a <- \"something\"");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Literal(parser::Literal::String("something".to_string())))
-            )
-        );
-    }
-
-    #[test]
-    fn test_assign_bool_literal() {
-        let lex_result = lexer::lex("a <- true");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Literal(parser::Literal::Bool(true)))
-            )
-        );
-    }
-
-    #[test]
-    fn test_assign_expr() {
-        let lex_result = lexer::lex("a <- 1 + 2");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::BinaryOp(
-                    parser::Operation::Plus,
-                    Box::new(parser::Expr::Literal(parser::Literal::Int(1))),
-                    Box::new(parser::Expr::Literal(parser::Literal::Int(2)))
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn test_parens() {
-        let lex_result = lexer::lex("a <- (1 + 2)");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Group(
-                    Box::new(parser::Expr::BinaryOp(
-                        parser::Operation::Plus,
-                        Box::new(parser::Expr::Literal(parser::Literal::Int(1))),
-                        Box::new(parser::Expr::Literal(parser::Literal::Int(2)))
-                    ))
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn test_index() {
-        let lex_result = lexer::lex("a <- [1, 1]");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::BinaryOp(
-                parser::Operation::Assign,
-                Box::new(parser::Expr::Identifier("a".to_string())),
-                Box::new(parser::Expr::Literal(parser::Literal::List(vec![
-                    parser::Expr::Literal(parser::Literal::Int(1)),
-                    parser::Expr::Literal(parser::Literal::Int(1))
-                ])))
-            )
-        );
-    }
-
-    #[test]
-    fn test_display() {
-        let lex_result = lexer::lex("DISPLAY 1 + 1");
-        let parse_result = parser::parse(lex_result);
-        assert_eq!(
-            parse_result[0],
-            parser::Expr::Display(
-                Box::new(parser::Expr::BinaryOp(
-                    parser::Operation::Plus,
-                    Box::new(parser::Expr::Literal(parser::Literal::Int(1))),
-                    Box::new(parser::Expr::Literal(parser::Literal::Int(1)))
-                ))
-            )
-        );
-    }
+    run_repl();
 }

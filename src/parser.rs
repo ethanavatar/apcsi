@@ -56,8 +56,6 @@ impl Parser {
 
     pub fn parse(&mut self, out: &mut Vec<Statement>) {
 
-        //println!("Parsing tokens: {:?}", self.tokens);
-
         while !self.is_at_end() {
             
             let decl = self.declaration();
@@ -72,7 +70,13 @@ impl Parser {
 
     fn declaration(&mut self) -> Option<Statement> {
 
+        // match_token has an implicit advancement
         if self.match_token(&vec![TokenId::Newline]) {
+            return None;
+        }
+
+        if let TokenId::Comment(_) = self.peek().id {
+            self.advance();
             return None;
         }
 
@@ -82,8 +86,9 @@ impl Parser {
             let name = self.consume(tok.clone().id, "Expected variable name.").clone();
 
             if !(self.peek_next().id == TokenId::Assign) {
-
-                self.consume(TokenId::Assign, "Expected '<-' after variable name.");
+                
+                let err = format!("Expected '<-' after variable name '{}'. ({}, {})", name.lexeme, name.line, name.column);
+                self.consume(TokenId::Assign, &err);
                 let decl = self.variable_declaration(&name);
                 return Some(decl)
 
@@ -112,6 +117,10 @@ impl Parser {
             return self.display_statement();
         }
 
+        if self.match_token(&vec![TokenId::LBrace]) {
+            return self.block_statement();
+        }
+
         return self.expression_statement();
     }
 
@@ -128,6 +137,20 @@ impl Parser {
         self.consume_either(&vec![TokenId::Newline, TokenId::Eof], &fail_msg);
 
         Statement::Display(value)
+    }
+
+    fn block_statement(&mut self) -> Statement {
+        let mut statements = Vec::new();
+        while !self.check(&TokenId::RBrace) && !self.is_at_end() {
+
+            let decl = self.declaration();
+            decl.is_some()
+                .then(|| statements.push(decl.unwrap()));
+        }
+
+        self.consume(TokenId::RBrace, "Expected '}' after block.");
+
+        Statement::Block(statements)
     }
 
     pub fn synchronize(&mut self) -> () {
@@ -292,6 +315,7 @@ impl Parser {
             return Expr::Identifier(self.advance().clone());
         }
 
-        panic!("Expected expression.");
+        let err = format!("Expect expression. Found: {:?} instead", self.peek());
+        panic!("{}", err);
     }
 }

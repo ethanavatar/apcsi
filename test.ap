@@ -1,0 +1,23 @@
+// globally defined value
+global <- 1
+{
+    // OK, `global` exists in the parent scope
+    DISPLAY "Scope 1 contains name: global=" + global + " (expect: 1)"
+
+    // Increment a value in the parent scope
+    global <- global + 1
+
+    // Define a local scope value
+    local <- 3
+    {
+        DISPLAY "Scope 2 contains name: local=" + local + " (expect: 3)"
+        DISPLAY "Scope 2 also contains name: global=" + global + " (expect: 2), it was defined 2 scopes ago and incremented in scope 1"
+    }
+}
+
+// prints "2"
+DISPLAY "The global scope contains name: global=" + global + " (expect: 2), properly keeping its change from a nested scope"
+
+// `local` was dropped at the end of the block
+// Crash!
+//DISPLAY local

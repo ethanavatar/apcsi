@@ -1,6 +1,0 @@
-DISPLAY TRUE
-DISPLAY 1 + 2 - 3
-
-str <- "Hello, Sailor!"
-
-DISPLAY str

@@ -13,7 +13,7 @@ pub trait StatementVisitor<R> {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Block(Vec<Box<Statement>>),
+    Block(Vec<Statement>),
     Expression(Expr),
     If(Expr, Box<Statement>, Option<Box<Statement>>),
     Display(Expr),
@@ -24,7 +24,6 @@ pub enum Statement {
 }
 
 impl Statement {
-    //                                   TODO: This type bound  \/  will cause issues later.
     pub fn accept<R>(&self, visitor: &mut impl StatementVisitor<R>) -> R {
         match self {
             s @ Statement::Block(_) => visitor.visit_block(s),

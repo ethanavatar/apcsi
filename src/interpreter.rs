@@ -30,8 +30,10 @@ impl Interpreter {
         }
     }
     
-    pub fn interpret(&mut self, statement: &Statement) -> () {
+    pub fn interpret(&mut self, statement: &Statement) -> Result<(), String> {
         self.execute(statement);
+
+        Ok(())
     }
 
     fn execute(&mut self, statement: &Statement) -> () {
@@ -45,8 +47,22 @@ impl Interpreter {
             Statement::Expression(expr) => {
                 expr.accept(self);
             },
+            block @ Statement::Block(_) => {
+                block.accept(self)
+            },
             _ => ()
         }
+    }
+
+    fn execute_block(&mut self, statements: &Vec<Statement>, environment: &Environment) -> () {
+        self.environment = environment.clone();
+
+        for statement in statements {
+            self.execute(statement);
+        }
+
+        let parent = self.environment.get_parent().unwrap();
+        self.environment = parent.clone();
     }
 
     fn evaluate(&mut self, expr: &Expr) -> InterpreterValue {
@@ -57,10 +73,7 @@ impl Interpreter {
         match expr {
             Expr::Literal(token) => {
                 match &token.id {
-                    TokenId::Number(n) => {
-                        let f = *n as f64;
-                        InterpreterValue::Number(f)
-                    },
+                    TokenId::Number(n) => InterpreterValue::Number(*n),
                     TokenId::String(s) => InterpreterValue::String(s.clone()),
                     TokenId::True => InterpreterValue::Boolean(true),
                     TokenId::False => InterpreterValue::Boolean(false),
@@ -100,7 +113,7 @@ impl Interpreter {
                     false => "FALSE".to_string(),
                 }
             },
-            InterpreterValue::None => "None".to_string(),
+            InterpreterValue::None => "NONE".to_string(),
         }
     }
 }
@@ -220,22 +233,17 @@ impl ExprVisitor for Interpreter {
                             if let InterpreterValue::Number(right) = right {
 
                                 // The actual return value
-                                InterpreterValue::Number(left + right)
+                                return InterpreterValue::Number(left + right)
 
                             } else {
                                 panic!("Binary operator expected number but got {:?}", right);
                             }
-                        } else if let InterpreterValue::String(left) = left {
-                            if let InterpreterValue::String(right) = right {
-
-                                // The actual return value
-                                InterpreterValue::String(format!("{}{}", left, right))
-
-                            } else {
-                                panic!("Binary operator expected string but got {:?}", right);
-                            }
                         } else {
-                            panic!("Binary operator expected number or string but got {:?}", left);
+                            let right = Self::to_string(&right);
+                            let left = Self::to_string(&left);
+
+                            // The actual return value
+                            return InterpreterValue::String(format!("{}{}", left, right))
                         }
 
                     }
@@ -342,10 +350,10 @@ impl ExprVisitor for Interpreter {
 
     fn visit_identifier(&mut self, expr: &Expr) -> InterpreterValue {
         if let Expr::Identifier(tok) = expr {
-            if let Some(value) = self.environment.get(&tok.lexeme) {
-                return value.clone()
-            } else {
-                panic!("Undefined variable `{}`", tok.lexeme);
+            let res = self.environment.get(&tok.lexeme);
+            match res {
+                Some(value) => value.clone(),
+                None => panic!("{}", format!("Name '{}' does not exist in the current context. ({}, {})", tok.lexeme, tok.line, tok.column)),
             }
         } else {
             unreachable!("Expected identifier expression but got {:?}", expr);
@@ -376,17 +384,29 @@ impl StatementVisitor<()> for Interpreter {
         unreachable!("Expected display statement but got {:?}", statement);
     }
 
-    fn visit_block(&mut self, block: &Statement) -> () { unimplemented!() }
-    fn visit_if(&mut self, if_statement: &Statement) -> () { unimplemented!() }
-    fn visit_procedure(&mut self, procedure: &Statement) -> () { unimplemented!() }
-    fn visit_return(&mut self, return_statement: &Statement) -> () { unimplemented!() }
-    fn visit_repeat(&mut self, while_statement: &Statement) -> () { unimplemented!() }
+    fn visit_block(&mut self, block: &Statement) -> () {
+        let statements = if let Statement::Block(s) = block {
+            s
+        } else {
+            unreachable!("Expected block statement but got {:?}", block);
+        };
+
+        self.execute_block(statements, &Environment::new_with_parent(self.environment.clone()));
+    }
+    fn visit_if(&mut self, _if: &Statement) -> () { unimplemented!() }
+    fn visit_procedure(&mut self, _proc: &Statement) -> () { unimplemented!() }
+    fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
+    fn visit_repeat(&mut self, _repeat: &Statement) -> () { unimplemented!() }
     fn visit_variable_decl(&mut self, variable: &Statement) -> () {
                 
         if let Statement::VariableDecl(name, expr) = variable {
             let value = self.evaluate(expr);
-            self.environment.define(name.lexeme.clone().as_str(), value);
+            if self.environment.is_defined(&name.lexeme) {
+                self.environment.set(&name.lexeme, &value).unwrap();
+                return;
+            }
 
+            self.environment.define(name.lexeme.clone().as_str(), &value);
         } else {
             unreachable!("Expected variable statement but got {:?}", variable);
         }

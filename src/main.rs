@@ -1,36 +1,27 @@
 mod scanner;
-use scanner::Scanner;
-
 mod parser;
-use parser::Parser;
-
 mod interpreter;
-use interpreter::Interpreter;
-
 mod statement;
-
 mod environment;
+
+use clap::Parser;
 
 use std::{path::PathBuf, io::Write, vec};
 
 fn run_program(program: &str) {
-    let mut scanner = Scanner::new(program);
+    let mut scanner = scanner::Scanner::new(program);
     let mut tokens = vec![];
     scanner.scan_tokens(&mut tokens);
 
-    //println!("scanned tokens");
-
-    let mut parser = Parser::new(tokens);
+    let mut parser = parser::Parser::new(tokens);
     let mut tree = vec![];
     parser.parse(&mut tree);
 
-    //println!("parsed tree");
-
     let env = environment::Environment::new();
 
-    let mut interpreter = Interpreter::new(env);
+    let mut interpreter = interpreter::Interpreter::new(env);
     for node in &tree {
-        interpreter.interpret(node);
+        interpreter.interpret(node).unwrap();
     }
 }
 
@@ -54,7 +45,24 @@ fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[derive(clap::Parser, Debug)]
+#[command(
+    author = "Ethan Evans",
+    about = "A simple interpreter for the College Board's AP Computer Science Principles pseudocode language.",
+    version
+)]
+struct Opts {
+    #[arg(default_value = None)]
+    file: Option<PathBuf>,
+}
+
+
 fn main() {
-    //run_repl();
-    run_file(PathBuf::from("test.txt")).unwrap();
+
+    let opts = Opts::parse();
+
+    match opts.file {
+        Some(path) => run_file(path).unwrap(),
+        None => run_repl(),
+    }
 }

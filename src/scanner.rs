@@ -1,7 +1,8 @@
-use std::fmt::Display;
+use modulo::Mod;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenId {
+    // Single-character tokens.
     LParen, RParen, LBrace, RBrace, LBracket, RBracket,
     Comma, Dot, Minus, Plus, Semicolon, Slash, Star,
   
@@ -12,7 +13,7 @@ pub enum TokenId {
     Less, LessEqual,
   
     // Literals.
-    Name(String), String(String), Number(u32),
+    Name(String), String(String), Number(f64),
   
     // Keywords.
     And, Or, Not, True, False, None,
@@ -20,6 +21,8 @@ pub enum TokenId {
     ForEach, In,
     If, Else, 
     Display, Return,
+
+    Comment(String),
   
     Newline,
     Eof
@@ -53,6 +56,8 @@ pub struct Scanner {
 }
 
 impl Scanner {
+
+    /// Creates a new scanner with the given source code.
     pub fn new(source: &str) -> Self {
         Self {
             source: source.to_string(),
@@ -62,28 +67,76 @@ impl Scanner {
         }
     }
 
-    /// Returns the next token in the source code.
-    fn advance(&mut self) -> char {
-        self.current += 1;
-        self.source.chars().nth(self.current - 1).unwrap()
+    /// Scans the source code and stores the resulting tokens in the `out` vector.
+    pub fn scan_tokens(&mut self, out: &mut Vec<Token>) {
+        while !self.is_at_end() {
+            self.start = self.current;
+            let tok = self.scan_token();
+            tok.is_some()
+                .then(|| out.push(tok.unwrap()));
+        }
+
+        out.push(Token::new(TokenId::Eof, "".to_string(), self.line, self.current));
     }
 
+    /// Returns `true` if the scanner's current position is at the end of the source code.
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
+    }
+
+    /// Returns the next unread token in the source code and advances the character pointer.
+    /// 
+    /// If the next position is at the end of the source code, returns a null character (`'\0'`), without advancing the character pointer.
+    fn advance(&mut self) -> char {
+        if self.is_at_end() {
+            return '\0'
+        }
+
+        self.current += 1;
+        self.source
+            .chars()
+            .nth(self.current - 1)
+            .unwrap()
+    }
+
+    /// Returns the character at the current position without advancing the character pointer.
+    /// 
+    /// If the current position is at the end of the source code, returns a null character (`'\0'`).
     fn peek(&self) -> char {
         if self.is_at_end() {
-            '\0'
-        } else {
-            self.source.chars().nth(self.current).unwrap()
+            return '\0'
         }
+        
+        self.source
+            .chars()
+            .nth(self.current)
+            .unwrap()
     }
 
+    /// Returns the character after the current position without advancing the character pointer.
+    /// 
+    /// If the next position is at the end of the source code, returns a null character (`'\0'`).
     fn peek_next(&self) -> char {
         if self.current + 1 >= self.source.len() {
             return '\0'
         }
 
-        self.source.chars().nth(self.current + 1).unwrap()
+        self.source
+            .chars()
+            .nth(self.current + 1)
+            .unwrap()
     }
 
+    /// Creates a new `Token` with the given `TokenId` and `lexeme`.
+    fn new_token(&self, id: TokenId, lexeme: String) -> Token {
+        Token::new(id, lexeme, self.line, self.start.modulo(self.line))
+    }
+
+    /// Returns `true` if the next character is the same as the given character, then advances the character pointer.
+    /// 
+    /// else, returns `false` without advancing the character pointer.
+    /// 
+    /// If the next position is at the end of the source code, returns `false` without advancing the character pointer.
     fn match_char(&mut self, expected: char) -> bool {
         if self.is_at_end() {
             return false;
@@ -97,6 +150,9 @@ impl Scanner {
         true
     }
 
+    /// Called when a quote is found. Advances the character pointer until the next quote is found.
+    ///
+    /// Returns a `TokenId::String(String)` that contains the string literal found between the quotes.
     fn match_string(&mut self) -> TokenId {
         while self.advance() != '"' {
             if self.is_at_end() || self.peek() == '\n' {
@@ -109,6 +165,9 @@ impl Scanner {
         id
     }
 
+    /// Called when a number is found. Advances the character pointer until the next character is not a digit or a decimal point.
+    /// 
+    /// Returns a `TokenId::Number(u32)` that contains the number literal found.
     fn match_number(&mut self) -> TokenId {
         while self.peek().is_ascii_digit() {
             self.advance();
@@ -128,6 +187,22 @@ impl Scanner {
         id
     }
 
+    /// Called when a name is found. Advances the character pointer until the next character is not a letter, digit, or underscore.
+    /// 
+    /// Returns a `TokenId::Name(String)` that contains the name found.
+    /// 
+    /// Alternatively, if the name is a reserved keyword, returns the corresponding `TokenId`.
+    /// ```rust
+    /// enum TokenId {
+    ///     ...
+    ///     // Keywords.
+    ///     AND, OR, NOT, TRUE, FALSE, NONE,
+    ///     PROCEDURE, REPEAT, TIMES, UNTIL,
+    ///     FOREACH, IN,
+    ///     IF, ELSE, 
+    ///     DISPLAY, RETURN
+    /// }
+    /// ```
     fn match_name(&mut self) -> TokenId {
         while self.peek().is_ascii_alphanumeric() || self.peek() == '_' {
             self.advance();
@@ -157,17 +232,38 @@ impl Scanner {
         id
     }
 
-    pub fn scan_tokens(&mut self, out: &mut Vec<Token>) {
-        while !self.is_at_end() {
-            self.start = self.current;
-            let tok = self.scan_token();
-            tok.is_some()
-                .then(|| out.push(tok.unwrap()));
+    /// Called when a comment is found
+    /// 
+    /// If the next character is a `/` (single line comment), advances the character pointer until the next newline is found.
+    /// 
+    /// If the next character is a `*` (multi-line comment), advances the character pointer until the next `*/` is found.
+    fn match_comment(&mut self) -> TokenId {
+        if self.match_char('/') {
+                    
+            while self.peek() != '\n' && !self.is_at_end() {
+                self.advance();
+            }
+            return TokenId::Comment(self.source[self.start + 2..self.current].to_string())
+        } else if self.match_char('*') {
+
+            while self.peek() != '*' && self.peek_next() != '/' && !self.is_at_end() {
+                self.advance();
+            }
+            if self.is_at_end() {
+                panic!("Unterminated block comment.");
+            }
+
+            // Step over the closing '*/'
+            self.advance();
+            self.advance();
+
+            return TokenId::Comment(self.source[self.start + 2..self.current - 1].to_string())
         }
 
-        out.push(Token::new(TokenId::Eof, "".to_string(), self.line, self.current));
+        unreachable!("Input is always a comment.")
     }
 
+    /// Matches the next character in the source code to a token and returns it.
     fn scan_token(&mut self) -> Option<Token> {
         let c = self.advance();
         
@@ -183,7 +279,12 @@ impl Scanner {
             '-' => Some(TokenId::Minus),
             '+' => Some(TokenId::Plus),
             ';' => Some(TokenId::Semicolon),
-            '/' => Some(TokenId::Slash),
+            '/' => {
+                match self.peek() {
+                    '/' | '*' =>  Some(self.match_comment()),
+                    _ => Some(TokenId::Slash)
+                }
+            },
             '*' => Some(TokenId::Star),
             '!' => Some(if self.match_char('=') {
                 TokenId::BangEqual
@@ -226,13 +327,5 @@ impl Scanner {
         }
 
         None
-    }
-
-    fn new_token(&self, id: TokenId, lexeme: String) -> Token {
-        Token::new(id, lexeme, self.line, self.start)
-    }
-
-    fn is_at_end(&self) -> bool {
-        self.current >= self.source.len()
     }
 }

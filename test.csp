@@ -66,4 +66,8 @@ ELSE {
     DISPLAY "else branch 2: this is supposed to happen"
 }
 
-Hello()
+i <- 1
+REPEAT UNTIL (i = 5) {
+    Hello()
+    i <- i + 1
+}

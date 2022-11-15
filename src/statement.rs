@@ -20,7 +20,7 @@ pub enum Statement {
     Display(Expr),
     Procedure(Token, Vec<Token>, Box<Statement>),
     Return(Token, Expr),
-    Repeat(Expr, Box<Statement>),
+    RepeatUntil(Expr, Box<Statement>),
     VariableDecl(Token, Expr),
     Call(Token, Vec<Token>),
 }
@@ -34,7 +34,7 @@ impl Statement {
             s @ Statement::Display(_) => visitor.visit_display(s),
             s @ Statement::Procedure(_, _, _) => visitor.visit_procedure(s),
             s @ Statement::Return(_, _) => visitor.visit_return(s),
-            s @ Statement::Repeat(_, _) => visitor.visit_repeat(s),
+            s @ Statement::RepeatUntil(_, _) => visitor.visit_repeat(s),
             s @ Statement::VariableDecl(_, _) => visitor.visit_variable_decl(s),
             s @ Statement::Call(_, _) => visitor.visit_call(s),
         }

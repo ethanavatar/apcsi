@@ -41,23 +41,14 @@ impl Interpreter {
 
     fn execute(&mut self, statement: &Statement) -> () {
         match statement {
-            display @ Statement::Display(_) => {
-                display.accept(self)
-            },
-            assign @ Statement::VariableDecl(_, _) => {
-                assign.accept(self)
-            },
-            Statement::Expression(expr) => {
-                expr.accept(self);
-            },
-            block @ Statement::Block(_) => {
-                block.accept(self)
-            },
-            if_statement @ Statement::If(_, _, _) => {
-                if_statement.accept(self)
-            },
+            display @ Statement::Display(_) => { display.accept(self) },
+            assign @ Statement::VariableDecl(_, _) => { assign.accept(self) },
+            Statement::Expression(expr) => { expr.accept(self); },
+            block @ Statement::Block(_) => { block.accept(self) },
+            if_stmt @ Statement::If(_, _, _) => { if_stmt.accept(self) },
             proc @ Statement::Procedure(_, _, _) => { proc.accept(self) },
             call @ Statement::Call(_, _) => { call.accept(self) },
+            repeat @ Statement::RepeatUntil(_, _) => { repeat.accept(self) }
             _ => ()
         }
     }
@@ -441,7 +432,25 @@ impl StatementVisitor<()> for Interpreter {
         self.environment.define(name.lexeme.clone().as_str(), &procedure);
     }
     fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
-    fn visit_repeat(&mut self, _repeat: &Statement) -> () { unimplemented!() }
+    fn visit_repeat(&mut self, repeat: &Statement) -> () {
+        let (break_expr, body) = if let Statement::RepeatUntil(e, b) = repeat {
+            (e, b)
+        } else {
+            unreachable!("The other type of repeat shouldnt be implemented")
+        };
+
+        let body_stmts = if let Statement::Block(v) = *body.clone() {
+            *v
+        } else { panic!() };
+
+        loop {
+            self.execute_block(&body_stmts, &Environment::new_with_parent(self.environment.clone()));
+            let cond = self.evaluate(break_expr);
+            if Self::is_truthy(&cond) {
+                break;
+            }
+        }
+    }
     fn visit_variable_decl(&mut self, variable: &Statement) -> () {
                 
         if let Statement::VariableDecl(name, expr) = variable {

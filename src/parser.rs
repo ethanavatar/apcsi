@@ -184,6 +184,12 @@ impl Parser {
             }
         }
 
+        { // Repeat
+            if self.match_token(&vec![TokenId::Repeat]) {
+                return Some(self.repeat_statement());
+            }
+        }
+
         return Some(self.expression_statement());
     }
 
@@ -273,6 +279,44 @@ impl Parser {
         let body = self.statement().unwrap();
 
         Statement::Procedure(name, params, Box::new(body))
+    }
+
+    fn repeat_statement(&mut self) -> Statement {
+        println!("repeat. current: {:?}", self.peek());
+
+        let mut stmt = None;
+
+        if self.check(&TokenId::UNTIL) {
+            stmt = Some(self.repeat_until_statement());
+        } else {
+            stmt = Some(self.repeat_times_statement());
+        }
+
+        println!("repeat stmt: {:?}", stmt);
+
+        stmt.unwrap()
+    }
+
+    fn repeat_until_statement(&mut self) -> Statement {
+
+        let err = format!("Expected keyword UNTIL following REPEAT. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::UNTIL, &err);
+
+        let err = format!("Expected '(' before conditional expression. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::LParen, &err);
+
+        let break_condition = self.expression();
+
+        let err = format!("Expected ')' after conditional expression. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::RParen, &err);
+        
+        let body = self.statement().unwrap();
+
+        Statement::RepeatUntil(break_condition, Box::new(body))
+    }
+
+    fn repeat_times_statement(&mut self) -> Statement {
+        todo!()
     }
 
     pub fn synchronize(&mut self) -> () {

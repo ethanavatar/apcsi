@@ -1,13 +1,16 @@
+use std::fmt::format;
+
 use crate::statement::{Statement, StatementVisitor};
 use crate::{parser::Expr};
 use crate::{scanner::TokenId};
 use crate::environment::Environment;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum InterpreterValue {
     Number(f64),
     String(String),
     Boolean(bool),
+    Function(Statement),
     None,
 }
 
@@ -53,6 +56,8 @@ impl Interpreter {
             if_statement @ Statement::If(_, _, _) => {
                 if_statement.accept(self)
             },
+            proc @ Statement::Procedure(_, _, _) => { proc.accept(self) },
+            call @ Statement::Call(_, _) => { call.accept(self) },
             _ => ()
         }
     }
@@ -117,6 +122,18 @@ impl Interpreter {
                 }
             },
             InterpreterValue::None => "NONE".to_string(),
+            InterpreterValue::Function(_) => format!("<fn>"),
+        }
+    }
+
+    fn call_void(&mut self, func: &InterpreterValue) -> () {
+        match func {
+            InterpreterValue::Function(stmt) => {
+                let mut env = Environment::new_with_parent(self.environment.clone());
+
+                self.execute(stmt)
+            },
+            _ => panic!("Can only call functions"),
         }
     }
 }
@@ -410,7 +427,19 @@ impl StatementVisitor<()> for Interpreter {
             self.execute(&else_branch);
         }
     }
-    fn visit_procedure(&mut self, _proc: &Statement) -> () { unimplemented!() }
+    fn visit_procedure(&mut self, _proc: &Statement) -> () {
+        let (name, params, body) = if let Statement::Procedure(n, p, b) = _proc {
+            (n, p, b)
+        } else {
+            unreachable!("Expected procedure statement but got {:?}", _proc);
+        };
+
+        let procedure = InterpreterValue::Function(
+            *body.clone(),
+        );
+
+        self.environment.define(name.lexeme.clone().as_str(), &procedure);
+    }
     fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
     fn visit_repeat(&mut self, _repeat: &Statement) -> () { unimplemented!() }
     fn visit_variable_decl(&mut self, variable: &Statement) -> () {
@@ -427,5 +456,22 @@ impl StatementVisitor<()> for Interpreter {
             unreachable!("Expected variable statement but got {:?}", variable);
         }
 
+    }
+
+    fn visit_call(&mut self, call: &Statement) -> () {
+        let (callee, args) = if let Statement::Call(c, a) = call {
+            (c, a)
+        } else {
+            unreachable!("Expected call statement but got {:?}", call);
+        };
+
+        let callee_value = {
+            let val = self.environment.get(&callee.lexeme)
+            .unwrap_or_else(|| panic!("Undefined procedure '{}'.", callee.lexeme));
+
+            val.clone()
+        };
+
+        self.call_void(&callee_value);
     }
 }

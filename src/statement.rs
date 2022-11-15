@@ -9,6 +9,7 @@ pub trait StatementVisitor<R> {
     fn visit_return(&mut self, return_statement: &Statement) -> R;
     fn visit_repeat(&mut self, while_statement: &Statement) -> R;
     fn visit_variable_decl(&mut self, variable: &Statement) -> R;
+    fn visit_call(&mut self, call_name: &Statement) -> R;
 }
 
 #[derive(Debug, Clone)]
@@ -17,10 +18,11 @@ pub enum Statement {
     Expression(Expr),
     If(Expr, Box<Statement>, Box<Option<Statement>>),
     Display(Expr),
-    Procedure(Token, Vec<Token>, Box<Vec<Statement>>),
+    Procedure(Token, Vec<Token>, Box<Statement>),
     Return(Token, Expr),
     Repeat(Expr, Box<Statement>),
     VariableDecl(Token, Expr),
+    Call(Token, Vec<Token>),
 }
 
 impl Statement {
@@ -34,6 +36,7 @@ impl Statement {
             s @ Statement::Return(_, _) => visitor.visit_return(s),
             s @ Statement::Repeat(_, _) => visitor.visit_repeat(s),
             s @ Statement::VariableDecl(_, _) => visitor.visit_variable_decl(s),
+            s @ Statement::Call(_, _) => visitor.visit_call(s),
         }
     }
 }

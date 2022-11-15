@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::fmt::Display;
 
 use crate::scanner::Token;
@@ -71,17 +72,24 @@ impl Parser {
     fn declaration(&mut self) -> Option<Statement> {
 
         let current = self.peek().clone();
+        let next = self.peek_next().clone();
+
         if let tok @ Token { id: TokenId::Name(_), .. } = current {
 
             let name = self.consume(tok.clone().id, "Expected variable name.").clone();
 
+            if let Token { id: TokenId::LParen, .. } = next {
+                return self.function(name);
+            }
+
+            println!("next: {:?}", self.peek());
             if !(self.peek_next().id == TokenId::Assign) {
                 
                 let err = format!("Expected '<-' after variable name '{}'. ({}, {})", name.lexeme, name.line, name.column);
                 self.consume(TokenId::Assign, &err);
                 let decl = self.variable_declaration(&name);
-                return Some(decl)
 
+                return Some(decl)
             }
 
         }
@@ -90,6 +98,38 @@ impl Parser {
 
         //self.synchronize();
         //None
+    }
+
+    fn function(&mut self, name: Token) -> Option<Statement> {
+        let params = self.parameters();
+
+        Some(Statement::Call(name, params))
+    }
+
+    fn parameters(&mut self) -> Vec<Token> {
+        let mut params = Vec::new();
+
+        self.consume(TokenId::LParen, "Expected '(' after function name.");
+
+        if !self.check(&TokenId::RParen) {
+            todo!("params");
+            /*
+            loop {
+                if params.len() >= 255 {
+                    panic!("Cannot have more than 255 parameters.");
+                }
+                let param  = self.consume(TokenId::Name(String::new()), "Expected parameter name.");
+                params.push(param.clone());
+
+                if !self.check(&TokenId::Comma) { break; }
+                self.consume(TokenId::Comma, "Expected ',' between parameters.");
+            }
+            */
+        }
+
+        self.consume(TokenId::RParen, "Expected ')' after parameters.");
+
+        params
     }
 
     fn variable_declaration(&mut self, name: &Token) -> Statement {
@@ -118,12 +158,30 @@ impl Parser {
             return Some(self.display_statement());
         }
 
-        if self.match_token(&vec![TokenId::LBrace]) {
-            return Some(self.block_statement());
+        { // Block Denotation
+            if self.match_token(&vec![TokenId::LBrace]) {
+                return Some(self.block_statement());
+            }
+
+            if self.match_token(&vec![TokenId::RBrace]) {
+                panic!("Unexpected '}}' at line {}, column {}", self.peek().line, self.peek().column);
+            }
         }
 
-        if self.match_token(&vec![TokenId::If]) {
-            return Some(self.if_statement());
+        { // IF STATEMENT
+            if self.match_token(&vec![TokenId::If]) {
+                return Some(self.if_statement());
+            }
+
+            if self.match_token(&vec![TokenId::Else]) {
+                panic!("Encountered 'else' without 'if' before it. ({}, {})", self.peek().line, self.peek().column);
+            }
+        }
+
+        { // Procedure
+            if self.match_token(&vec![TokenId::Procedure]) {
+                return Some(self.procedure_statement());
+            }
         }
 
         return Some(self.expression_statement());
@@ -153,7 +211,8 @@ impl Parser {
                 .then(|| statements.push(decl.unwrap()));
         }
 
-        self.consume(TokenId::RBrace, "Expected '}' after block.");
+        let err = format!("Expected '}}' after block. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::RBrace, &err);
 
         Statement::Block(Box::new(statements))
     }
@@ -162,6 +221,8 @@ impl Parser {
         self.consume(TokenId::LParen, "Expected '(' after 'if'.");
         let condition = self.expression();
         self.consume(TokenId::RParen, "Expected ')' after if condition.");
+
+        self.jump_over_ignored();
 
         let then_branch = self.statement().unwrap();
 
@@ -173,7 +234,45 @@ impl Parser {
         //println!("if ({:?}): {:?}\nelse: {:?}\n", condition, then_branch, else_branch);
 
         Statement::If(condition, Box::new(then_branch), Box::new(else_branch))
+    }
 
+    fn procedure_statement(&mut self) -> Statement {
+        let name = if let tok @ Token { id: TokenId::Name(_), .. } = self.peek().clone() {
+            tok
+        } else {
+            panic!("Expected procedure name after 'procedure'. ({}, {})", self.peek().line, self.peek().column);
+        };
+        self.advance();
+
+        self.consume(TokenId::LParen, "Expected '(' after procedure name.");
+        let mut params: Vec<Token> = Vec::new();
+
+        if !self.check(&TokenId::RParen) {
+            loop {
+                if params.len() >= 255 {
+                    panic!("Cannot have more than 255 parameters.");
+                }
+
+                let param: Token = if let p @ Token { id: TokenId::Name(_), .. } = self.peek() {
+                    p.clone()
+                } else {
+                    panic!("Expected parameter name.");
+                };
+                self.advance();
+
+                params.push(param);
+
+                if !self.match_token(&vec![TokenId::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenId::RParen, "Expected ')' after procedure parameters.");
+
+        let body = self.statement().unwrap();
+
+        Statement::Procedure(name, params, Box::new(body))
     }
 
     pub fn synchronize(&mut self) -> () {

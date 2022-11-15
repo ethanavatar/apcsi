@@ -1,5 +1,5 @@
 // globally defined value
-global <- 1
+global<- 1
 {
     // OK, `global` exists in the parent scope
     DISPLAY "Scope 1 contains name: global=" + global + " (expect: 1)"
@@ -23,7 +23,14 @@ DISPLAY "The global scope contains name: global=" + global + " (expect: 2), prop
 //DISPLAY local
 
 
+PROCEDURE Hello() {
+    DISPLAY "Hello, Sailor!"
+}
 
+IF (TRUE)
+{
+    DISPLAY "Lone IF"
+}
 
 IF (1 = 2) {
     DISPLAY "then branch 2: this is not supposed to happen"
@@ -57,3 +64,5 @@ IF (1 = 2) {
 ELSE {
     DISPLAY "else branch 2: this is supposed to happen"
 }
+
+Hello()

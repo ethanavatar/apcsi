@@ -10,7 +10,6 @@ This tool is VERY much not complete and VERY buggy. Here's a list of things that
 
 - [ ] Functions with parameters
 - [ ] Functions with return values
-- [ ] `REPEAT` loops
 - [ ] `FOR EACH` loops
 - [ ] Fix misc syntax errors where there shouldn't be any
 - [ ] Fix misc runtime errors where there shouldn't be any

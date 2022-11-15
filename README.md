@@ -4,6 +4,18 @@ An interpreter for the College Board's AP Computer Science Principles pseudocode
 
 The language specification can be found [here](https://apcentral.collegeboard.org/media/pdf/ap-computer-science-principles-exam-reference-sheet.pdf).
 
+## To-Do
+
+This tool is VERY much not complete and VERY buggy. Here's a list of things that need to be done:
+
+- [ ] Functions with parameters
+- [ ] Functions with return values
+- [ ] `REPEAT` loops
+- [ ] `FOR EACH` loops
+- [ ] Fix misc syntax errors where there shouldn't be any
+- [ ] Fix misc runtime errors where there shouldn't be any
+- [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place)
+
 ## Installation
 
 ```bash

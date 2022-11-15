@@ -48,7 +48,7 @@ fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 #[derive(clap::Parser, Debug)]
 #[command(
     author = "Ethan Evans",
-    about = "A simple interpreter for the College Board's AP Computer Science Principles pseudocode language.",
+    about = "An interpreter for the College Board's AP Computer Science Principles pseudocode language.",
     version
 )]
 struct Opts {

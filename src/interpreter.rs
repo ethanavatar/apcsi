@@ -50,6 +50,9 @@ impl Interpreter {
             block @ Statement::Block(_) => {
                 block.accept(self)
             },
+            if_statement @ Statement::If(_, _, _) => {
+                if_statement.accept(self)
+            },
             _ => ()
         }
     }
@@ -393,7 +396,20 @@ impl StatementVisitor<()> for Interpreter {
 
         self.execute_block(statements, &Environment::new_with_parent(self.environment.clone()));
     }
-    fn visit_if(&mut self, _if: &Statement) -> () { unimplemented!() }
+    fn visit_if(&mut self, _if: &Statement) -> () {
+
+        let (condition, then_branch, else_branch) = if let Statement::If(c, t, e) = _if {
+            (c, t, e)
+        } else {
+            unreachable!("Expected if statement but got {:?}", _if);
+        };
+
+        if Self::is_truthy(&self.evaluate(condition)) {
+            self.execute(then_branch);
+        } else if let Some(else_branch) = *else_branch.clone() {
+            self.execute(&else_branch);
+        }
+    }
     fn visit_procedure(&mut self, _proc: &Statement) -> () { unimplemented!() }
     fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
     fn visit_repeat(&mut self, _repeat: &Statement) -> () { unimplemented!() }

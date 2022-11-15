@@ -21,3 +21,39 @@ DISPLAY "The global scope contains name: global=" + global + " (expect: 2), prop
 // `local` was dropped at the end of the block
 // Crash!
 //DISPLAY local
+
+
+
+
+IF (1 = 2) {
+    DISPLAY "then branch 2: this is not supposed to happen"
+} ELSE {
+    DISPLAY "else branch 2: this is supposed to happen"
+}
+
+IF (1 = 2) {
+    DISPLAY "then branch 2: this is not supposed to happen"
+}
+
+
+// Intentionally long seperation between then and else branches
+
+
+ELSE {
+    DISPLAY "else branch 2: this is supposed to happen"
+}
+
+IF (1 = 1) {
+    DISPLAY "then branch 1: this is supposed to happen"
+}
+// This comment was a bug
+ELSE {
+    DISPLAY "else branch 1: this is not supposed to happen"
+}
+
+IF (1 = 2) {
+    DISPLAY "then branch 2: this is not supposed to happen"
+} // This comment was a bug
+ELSE {
+    DISPLAY "else branch 2: this is supposed to happen"
+}

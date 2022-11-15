@@ -13,11 +13,11 @@ pub trait StatementVisitor<R> {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Block(Vec<Statement>),
+    Block(Box<Vec<Statement>>),
     Expression(Expr),
-    If(Expr, Box<Statement>, Option<Box<Statement>>),
+    If(Expr, Box<Statement>, Box<Option<Statement>>),
     Display(Expr),
-    Procedure(Token, Vec<Token>, Vec<Box<Statement>>),
+    Procedure(Token, Vec<Token>, Box<Vec<Statement>>),
     Return(Token, Expr),
     Repeat(Expr, Box<Statement>),
     VariableDecl(Token, Expr),

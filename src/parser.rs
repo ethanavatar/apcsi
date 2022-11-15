@@ -70,16 +70,6 @@ impl Parser {
 
     fn declaration(&mut self) -> Option<Statement> {
 
-        // match_token has an implicit advancement
-        if self.match_token(&vec![TokenId::Newline]) {
-            return None;
-        }
-
-        if let TokenId::Comment(_) = self.peek().id {
-            self.advance();
-            return None;
-        }
-
         let current = self.peek().clone();
         if let tok @ Token { id: TokenId::Name(_), .. } = current {
 
@@ -96,7 +86,7 @@ impl Parser {
 
         }
 
-        Some(self.statement())
+        self.statement()
 
         //self.synchronize();
         //None
@@ -112,16 +102,31 @@ impl Parser {
         Statement::VariableDecl(name.clone(), initializer)
     }
 
-    fn statement(&mut self) -> Statement {
+    fn statement(&mut self) -> Option<Statement> {
+
+        if self.peek().id == TokenId::Newline {
+            self.advance();
+            return None;
+        }
+
+        if let TokenId::Comment(_) = self.peek().id {
+            self.advance();
+            return None;
+        }
+
         if self.match_token(&vec![TokenId::Display]) {
-            return self.display_statement();
+            return Some(self.display_statement());
         }
 
         if self.match_token(&vec![TokenId::LBrace]) {
-            return self.block_statement();
+            return Some(self.block_statement());
         }
 
-        return self.expression_statement();
+        if self.match_token(&vec![TokenId::If]) {
+            return Some(self.if_statement());
+        }
+
+        return Some(self.expression_statement());
     }
 
     fn expression_statement(&mut self) -> Statement {
@@ -150,7 +155,25 @@ impl Parser {
 
         self.consume(TokenId::RBrace, "Expected '}' after block.");
 
-        Statement::Block(statements)
+        Statement::Block(Box::new(statements))
+    }
+
+    fn if_statement(&mut self) -> Statement {
+        self.consume(TokenId::LParen, "Expected '(' after 'if'.");
+        let condition = self.expression();
+        self.consume(TokenId::RParen, "Expected ')' after if condition.");
+
+        let then_branch = self.statement().unwrap();
+
+        self.jump_over_ignored();
+
+        let else_branch = self.match_token(&vec![TokenId::Else])
+            .then(|| self.statement().unwrap());
+
+        //println!("if ({:?}): {:?}\nelse: {:?}\n", condition, then_branch, else_branch);
+
+        Statement::If(condition, Box::new(then_branch), Box::new(else_branch))
+
     }
 
     pub fn synchronize(&mut self) -> () {
@@ -172,6 +195,18 @@ impl Parser {
             }
 
             self.advance();
+        }
+    }
+
+    fn jump_over_ignored(&mut self) -> () {
+        if let TokenId::Comment(_) = self.peek().id {
+            self.advance();
+            self.jump_over_ignored();
+        }
+
+        if self.peek().id == TokenId::Newline {
+            self.advance();
+            self.jump_over_ignored();
         }
     }
 

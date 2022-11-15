@@ -67,7 +67,18 @@ ELSE {
 }
 
 i <- 1
-REPEAT UNTIL (i = 5) {
-    Hello()
+REPEAT UNTIL (i > 5) {
+    DISPLAY "i is " + (5 - i) + " less than 5"
+
+    IF (5 - i = 0) {
+        DISPLAY "breaking"
+    }
+
+    i <- i + 1
+}
+
+i <- 1
+REPEAT (5) TIMES {
+    DISPLAY "looped " + i + " times"
     i <- i + 1
 }

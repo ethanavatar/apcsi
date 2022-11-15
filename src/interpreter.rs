@@ -48,7 +48,8 @@ impl Interpreter {
             if_stmt @ Statement::If(_, _, _) => { if_stmt.accept(self) },
             proc @ Statement::Procedure(_, _, _) => { proc.accept(self) },
             call @ Statement::Call(_, _) => { call.accept(self) },
-            repeat @ Statement::RepeatUntil(_, _) => { repeat.accept(self) }
+            until @ Statement::RepeatUntil(_, _) => { until.accept(self) }
+            times @ Statement::RepeatTimes(_, _) => { times.accept(self) }
             _ => ()
         }
     }
@@ -432,11 +433,11 @@ impl StatementVisitor<()> for Interpreter {
         self.environment.define(name.lexeme.clone().as_str(), &procedure);
     }
     fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
-    fn visit_repeat(&mut self, repeat: &Statement) -> () {
+    fn visit_repeat_until(&mut self, repeat: &Statement) -> () {
         let (break_expr, body) = if let Statement::RepeatUntil(e, b) = repeat {
             (e, b)
         } else {
-            unreachable!("The other type of repeat shouldnt be implemented")
+            unreachable!("The other type of repeat shouldnt be visiting this")
         };
 
         let body_stmts = if let Statement::Block(v) = *body.clone() {
@@ -450,6 +451,27 @@ impl StatementVisitor<()> for Interpreter {
                 break;
             }
         }
+    }
+    fn visit_repeat_times(&mut self, repeat: &Statement) -> () {
+        let (times, body) = if let Statement::RepeatTimes(e, b) = repeat {
+            (e, b)
+        } else {
+            unreachable!("The other type of repeat shouldnt be visiting this")
+        };
+
+        let times = match self.evaluate(times) {
+            InterpreterValue::Number(n) => n as u64,
+            _ => panic!()
+        };
+
+        let body_stmts = if let Statement::Block(v) = *body.clone() {
+            *v
+        } else { panic!() };
+
+        for _ in 0..times {
+            self.execute_block(&body_stmts, &Environment::new_with_parent(self.environment.clone()));
+        }
+
     }
     fn visit_variable_decl(&mut self, variable: &Statement) -> () {
                 

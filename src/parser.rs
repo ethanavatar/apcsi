@@ -282,7 +282,7 @@ impl Parser {
     }
 
     fn repeat_statement(&mut self) -> Statement {
-        println!("repeat. current: {:?}", self.peek());
+        //println!("repeat. current: {:?}", self.peek());
 
         let mut stmt = None;
 
@@ -292,7 +292,7 @@ impl Parser {
             stmt = Some(self.repeat_times_statement());
         }
 
-        println!("repeat stmt: {:?}", stmt);
+        //println!("repeat stmt: {:?}", stmt);
 
         stmt.unwrap()
     }
@@ -316,7 +316,21 @@ impl Parser {
     }
 
     fn repeat_times_statement(&mut self) -> Statement {
-        todo!()
+        // TODO: assert that the input is integral
+
+        let err = format!("Expected '(' before conditional expression. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::LParen, &err);
+
+        let times = self.expression();
+
+        let err = format!("Expected ')' after conditional expression. ({}, {})", self.peek().line, self.peek().column);
+        self.consume(TokenId::RParen, &err);
+
+        self.consume(TokenId::TIMES, "Expected TIMES after number");
+
+        let body = self.statement().unwrap();
+
+        Statement::RepeatTimes(times, Box::new(body))
     }
 
     pub fn synchronize(&mut self) -> () {

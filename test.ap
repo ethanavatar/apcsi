@@ -44,6 +44,7 @@ IF (1 = 2) {
 
 
 // Intentionally long seperation between then and else branches
+// to test that the parser can handle (still) it
 
 
 ELSE {
@@ -53,14 +54,14 @@ ELSE {
 IF (1 = 1) {
     DISPLAY "then branch 1: this is supposed to happen"
 }
-// This comment was a bug
+// This comment was previously a bug
 ELSE {
     DISPLAY "else branch 1: this is not supposed to happen"
 }
 
 IF (1 = 2) {
     DISPLAY "then branch 2: this is not supposed to happen"
-} // This comment was a bug
+} // This comment was previously a bug
 ELSE {
     DISPLAY "else branch 2: this is supposed to happen"
 }

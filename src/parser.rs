@@ -82,7 +82,7 @@ impl Parser {
                 return self.function(name);
             }
 
-            println!("next: {:?}", self.peek());
+            //println!("next: {:?}", self.peek());
             if !(self.peek_next().id == TokenId::Assign) {
                 
                 let err = format!("Expected '<-' after variable name '{}'. ({}, {})", name.lexeme, name.line, name.column);

@@ -405,25 +405,30 @@ impl StatementVisitor<()> for Interpreter {
 
         self.execute_block(statements, &Environment::new_with_parent(self.environment.clone()));
     }
-    fn visit_if(&mut self, _if: &Statement) -> () {
+    fn visit_if(&mut self, If: &Statement) -> () {
 
-        let (condition, then_branch, else_branch) = if let Statement::If(c, t, e) = _if {
-            (c, t, e)
-        } else {
-            unreachable!("Expected if statement but got {:?}", _if);
+        let (
+            condition,
+            then_branch,
+            else_branch
+        ) = match If {
+            Statement::If(c, t, e) => (c, t, *e.clone()),
+            _ => unreachable!()
         };
 
         if Self::is_truthy(&self.evaluate(condition)) {
             self.execute(then_branch);
-        } else if let Some(else_branch) = *else_branch.clone() {
+        } else if let Some(else_branch) = else_branch {
             self.execute(&else_branch);
         }
     }
-    fn visit_procedure(&mut self, _proc: &Statement) -> () {
-        let (name, params, body) = if let Statement::Procedure(n, p, b) = _proc {
-            (n, p, b)
-        } else {
-            unreachable!("Expected procedure statement but got {:?}", _proc);
+    fn visit_procedure(&mut self, proc: &Statement) -> () {
+        let (
+            name,
+            params,
+            body
+        ) = match proc {
+            Statement::Procedure(n, p, b) => (n, p, b)
         };
 
         let procedure = InterpreterValue::Function(
@@ -434,15 +439,16 @@ impl StatementVisitor<()> for Interpreter {
     }
     fn visit_return(&mut self, _return: &Statement) -> () { unimplemented!() }
     fn visit_repeat_until(&mut self, repeat: &Statement) -> () {
-        let (break_expr, body) = if let Statement::RepeatUntil(e, b) = repeat {
-            (e, b)
-        } else {
-            unreachable!("The other type of repeat shouldnt be visiting this")
+
+        let (break_expr, body) = match repeat {
+            Statement::RepeatUntil(e, b) => (e, *b.clone()),
+            _ => unreachable!()
         };
 
-        let body_stmts = if let Statement::Block(v) = *body.clone() {
-            *v
-        } else { panic!() };
+        let body_stmts = match body {
+            Statement::Block(v) => *v,
+            _ => panic!()
+        };
 
         loop {
             self.execute_block(&body_stmts, &Environment::new_with_parent(self.environment.clone()));
@@ -453,18 +459,18 @@ impl StatementVisitor<()> for Interpreter {
         }
     }
     fn visit_repeat_times(&mut self, repeat: &Statement) -> () {
-        let (times, body) = if let Statement::RepeatTimes(e, b) = repeat {
-            (e, b)
-        } else {
-            unreachable!("The other type of repeat shouldnt be visiting this")
+
+        let (times, body) = match repeat {
+            Statement::RepeatTimes(e, b) => (e, *b.clone()),
+            _ => unreachable!()
         };
 
         let times = match self.evaluate(times) {
             InterpreterValue::Number(n) => n as u64,
-            _ => panic!()
+            _ => panic!("Expected integral value for repeat statement")
         };
 
-        let body_stmts = if let Statement::Block(v) = *body.clone() {
+        let body_stmts = if let Statement::Block(v) = body {
             *v
         } else { panic!() };
 

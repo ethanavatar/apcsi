@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt::Display;
 
 use crate::scanner::Token;
@@ -282,19 +281,12 @@ impl Parser {
     }
 
     fn repeat_statement(&mut self) -> Statement {
-        //println!("repeat. current: {:?}", self.peek());
-
-        let mut stmt = None;
 
         if self.check(&TokenId::UNTIL) {
-            stmt = Some(self.repeat_until_statement());
+            self.repeat_until_statement()
         } else {
-            stmt = Some(self.repeat_times_statement());
+            self.repeat_times_statement()
         }
-
-        //println!("repeat stmt: {:?}", stmt);
-
-        stmt.unwrap()
     }
 
     fn repeat_until_statement(&mut self) -> Statement {

@@ -121,7 +121,7 @@ impl Interpreter {
     fn call_void(&mut self, func: &InterpreterValue) -> () {
         match func {
             InterpreterValue::Function(stmt) => {
-                let mut env = Environment::new_with_parent(self.environment.clone());
+                //let mut env = Environment::new_with_parent(self.environment.clone());
 
                 self.execute(stmt)
             },
@@ -405,13 +405,13 @@ impl StatementVisitor<()> for Interpreter {
 
         self.execute_block(statements, &Environment::new_with_parent(self.environment.clone()));
     }
-    fn visit_if(&mut self, If: &Statement) -> () {
+    fn visit_if(&mut self, r#if: &Statement) -> () {
 
         let (
             condition,
             then_branch,
             else_branch
-        ) = match If {
+        ) = match r#if {
             Statement::If(c, t, e) => (c, t, *e.clone()),
             _ => unreachable!()
         };
@@ -428,7 +428,8 @@ impl StatementVisitor<()> for Interpreter {
             params,
             body
         ) = match proc {
-            Statement::Procedure(n, p, b) => (n, p, b)
+            Statement::Procedure(n, p, b) => (n, p, b),
+            _ => unreachable!()
         };
 
         let procedure = InterpreterValue::Function(

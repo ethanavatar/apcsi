@@ -38,6 +38,10 @@ impl Parser {
 
             let name = self.consume(tok.clone().id, "Expected variable name.").clone();
 
+            if self.check(&TokenId::LBracket) {
+                return Some(self.list_access(name))
+            }
+
             if let Token { id: TokenId::LParen, .. } = next {
                 return self.function(name);
             }
@@ -97,9 +101,24 @@ impl Parser {
         let initializer = self.expression();
 
         let fail_msg = format!("Expected '\\n' after variable declaration. Found: {:?} instead", self.peek());
-        self.consume(TokenId::Newline, &fail_msg);
+        self.consume_either(&vec![TokenId::Newline, TokenId::Eof], &fail_msg);
 
         Statement::VariableDecl(name.clone(), initializer)
+    }
+
+    fn list_access(&mut self, name: Token) -> Statement {
+        self.consume(TokenId::LBracket, "Expected '[' after variable name.");
+        let index = self.expression();
+        self.consume(TokenId::RBracket, "Expected ']' after index.");
+
+        self.consume(TokenId::Assign, "Expected '<-' after index.");
+
+        let value = self.expression();
+
+        let fail_msg = format!("Expected '\\n' after variable declaration. Found: {:?} instead", self.peek());
+        self.consume_either(&vec![TokenId::Newline, TokenId::Eof], &fail_msg);
+
+        Statement::ListAccess(name, index, value)
     }
 
     fn statement(&mut self) -> Option<Statement> {
@@ -155,7 +174,60 @@ impl Parser {
             return Some(self.return_statement());
         }
 
+        // List Operations
+        match self.peek().id {
+            TokenId::Append
+            | TokenId::Insert
+            | TokenId::Remove
+            | TokenId::Length => return Some(self.list_operation_statement()),
+            _ => {}
+        }
+
+        if let TokenId::For = self.peek().id {
+            return Some(self.for_statement());
+        }
+
         return Some(self.expression_statement());
+    }
+
+    fn list_operation_statement(&mut self) -> Statement {
+        
+        let op = self.consume_either(
+            &vec![TokenId::Append, TokenId::Insert, TokenId::Remove],
+            "Expected 'append', 'insert', or 'remove'."
+        ).clone();
+
+        let name = if let t @ Token { id: TokenId::Name(_), .. } = self.peek() {
+            t.clone()
+        } else {
+            panic!("Expected name after 'append'. ({}, {})", self.peek().line, self.peek().column);
+        };
+        self.advance();
+        
+        let err = format!("Expected ',' after list name. Got {:?} instead. ({}, {})", self.peek().id, self.peek().line, self.peek().column);
+        self.consume(TokenId::Comma, &err);
+
+        if op.id == TokenId::Remove {
+            let index = self.expression();
+            return Statement::ListOperation(op, name, Some(index), None);
+        }
+
+        if op.id == TokenId::Append {
+            let value = self.expression();
+            return Statement::ListOperation(op, name, Some(value), None);
+        }
+
+        if op.id == TokenId::Insert {
+            let index = self.expression();
+            
+            let err = format!("Expected ',' after index. Got {:?} instead. ({}, {})", self.peek().id, self.peek().line, self.peek().column);
+            self.consume(TokenId::Comma, &err);
+
+            let value = self.expression();
+            return Statement::ListOperation(op, name, Some(index), Some(value));
+        }
+
+        panic!("Unexpected list operation: {:?}", op);
     }
 
     fn expression_statement(&mut self) -> Statement {
@@ -186,6 +258,32 @@ impl Parser {
         self.consume(TokenId::RBrace, &err);
 
         Statement::Block(Box::new(statements))
+    }
+
+    fn for_statement(&mut self) -> Statement {
+        self.consume(TokenId::For, "Expected 'for' at start of for loop.");
+        self.consume(TokenId::Each, "Expected 'each' after 'for'.");
+        
+        let capture = if let t @ Token { id: TokenId::Name(_), .. } = self.peek() {
+            t.clone()
+        } else {
+            panic!("Expected name after 'each'. ({}, {})", self.peek().line, self.peek().column);
+        };
+        self.advance();
+
+        let err = format!("Expected 'in' after capture name. Got {:?} instead. ({}, {})", self.peek().id, self.peek().line, self.peek().column);
+        self.consume(TokenId::In, &err);
+
+        let lst = if let t @ Token { id: TokenId::Name(_), .. } = self.peek() {
+            t.clone()
+        } else {
+            panic!("Expected name after 'in'. ({}, {})", self.peek().line, self.peek().column);
+        };
+        self.advance();
+
+        let body = self.statement().unwrap();
+
+        Statement::For(capture, lst, Box::new(body))
     }
 
     fn if_statement(&mut self) -> Statement {
@@ -310,7 +408,7 @@ impl Parser {
 
             match self.peek().id {
                 TokenId::Procedure
-                | TokenId::ForEach
+                | TokenId::For
                 | TokenId::If
                 | TokenId::Repeat
                 | TokenId::Display
@@ -447,7 +545,7 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Expr {
-        if self.match_token(&vec![TokenId::Bang, TokenId::Minus]) {
+        if self.match_token(&vec![TokenId::Bang, TokenId::Minus, TokenId::Length]) {
             let operator = self.previous().clone();
             let right = self.unary().clone();
             return Expr::Unary(operator, Box::new(right));
@@ -481,7 +579,14 @@ impl Parser {
             if self.check_next(&TokenId::LParen) {
                 return self.call_expr();
             }
+            if self.check_next(&TokenId::LBracket) {
+                return self.get_expr();
+            }
             return Expr::Identifier(self.advance().clone());
+        }
+
+        if let TokenId::LBracket = self.peek().id {
+            return self.list_expr();
         }
 
         let err = format!("Expect expression. Found: {:?} instead", self.peek());
@@ -505,5 +610,34 @@ impl Parser {
         }
         self.consume(TokenId::RParen, "Expect ')' after arguments.");
         Expr::Call(callee, arguments)
+    }
+
+    fn list_expr(&mut self) -> Expr {
+        let mut elements = Vec::new();
+        self.consume(TokenId::LBracket, "Expect '[' after '['.");
+        if !self.check(&TokenId::RBracket) {
+            loop {
+                if elements.len() >= 255 {
+                    panic!("Cannot have more than 255 elements.");
+                }
+                elements.push(self.expression());
+                if !self.match_token(&vec![TokenId::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenId::RBracket, "Expect ']' after elements.");
+        Expr::ListLiteral(elements)
+    }
+
+    fn get_expr(&mut self) -> Expr {
+        let name = self.advance().clone();
+
+        self.consume(TokenId::LBracket, "Expect '[' after name.");
+        let index = self.expression();
+        self.consume(TokenId::RBracket, "Expect ']' after index.");
+
+        //println!("{}[{}]", name.lexeme, index);
+        Expr::Get(name, Box::new(index))
     }
 }

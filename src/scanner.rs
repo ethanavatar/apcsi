@@ -18,9 +18,11 @@ pub enum TokenId {
     // Keywords.
     And, Or, Not, True, False, None,
     Procedure, Repeat, TIMES, UNTIL,
-    ForEach, In,
+    For, Each, In,
     If, Else, 
     Display, Return,
+
+    Append, Insert, Remove, Length,
 
     Comment(String),
   
@@ -220,12 +222,17 @@ impl Scanner {
             "REPEAT" => TokenId::Repeat,
             "TIMES" => TokenId::TIMES,
             "UNTIL" => TokenId::UNTIL,
-            "FOREACH" => TokenId::ForEach,
+            "FOR" => TokenId::For,
+            "EACH" => TokenId::Each,
             "IN" => TokenId::In,
             "IF" => TokenId::If,
             "ELSE" => TokenId::Else,
             "DISPLAY" => TokenId::Display,
             "RETURN" => TokenId::Return,
+            "APPEND" => TokenId::Append,
+            "REMOVE" => TokenId::Remove,
+            "LENGTH" => TokenId::Length,
+            "INSERT" => TokenId::Insert,
             _ => TokenId::Name(name),
         };
 

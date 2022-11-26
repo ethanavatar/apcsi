@@ -6,14 +6,11 @@ The language specification can be found [here](https://apcentral.collegeboard.or
 
 ## To-Do
 
-This tool is VERY much not complete and VERY buggy. Here's a list of things that need to be done:
+This tool is VERY incomplete and VERY buggy. Here's a list of things that need to be done:
 
-- [ ] Functions with parameters
-- [ ] Functions with return values
-- [ ] `FOR EACH` loops
-- [ ] Fix misc syntax errors where there shouldn't be any
-- [ ] Fix misc runtime errors where there shouldn't be any
-- [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place)
+- [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place without syncronization)
+- [ ] Make more examples
+- [ ] Add more tests
 
 ## Installation
 

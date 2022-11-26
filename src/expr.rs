@@ -9,9 +9,11 @@ pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Token),
+    ListLiteral(Vec<Expr>),
     Unary(Token, Box<Expr>),
     Identifier(Token),
     Call(Token, Vec<Expr>),
+    Get(Token, Box<Expr>),
 }
 
 pub trait ExprVisitor {
@@ -21,6 +23,8 @@ pub trait ExprVisitor {
     fn visit_binary(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
     fn visit_identifier(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
     fn visit_call(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
+    fn visit_list_literal(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
+    fn visit_get(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
 }
 
 impl Expr {
@@ -32,6 +36,8 @@ impl Expr {
             e @ Expr::Unary(_, _) => visitor.visit_unary(e, env),
             e @ Expr::Identifier(_) => visitor.visit_identifier(e, env),
             e @ Expr::Call(_, _) => visitor.visit_call(e, env),
+            e @ Expr::ListLiteral(_) => visitor.visit_list_literal(e, env),
+            e @ Expr::Get(_, _) => visitor.visit_get(e, env),
         }
     }
 }
@@ -53,6 +59,14 @@ impl Display for Expr {
                 }
                 write!(f, ")")
             }
+            Expr::ListLiteral(exprs) => {
+                write!(f, "[")?;
+                for expr in exprs {
+                    write!(f, "{}, ", expr)?;
+                }
+                write!(f, "]")
+            }
+            Expr::Get(token, expr) => write!(f, "{}[{}]", token.lexeme, expr),
         }
     }
 }

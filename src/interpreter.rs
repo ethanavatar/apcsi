@@ -1,3 +1,4 @@
+use crate::scanner::Token;
 use crate::statement::{Statement, StatementVisitor};
 use crate::{scanner::TokenId};
 use crate::environment::Environment;
@@ -9,6 +10,7 @@ pub enum InterpreterValue {
     String(String),
     Boolean(bool),
     Function(String, Statement, Vec<String>, Environment),
+    List(Vec<InterpreterValue>),
     None,
 }
 
@@ -31,16 +33,19 @@ impl Interpreter {
 
     fn execute(&mut self, statement: &Statement, env: &mut Environment) -> InterpreterValue {
         match statement {
-            s @ Statement::Display(_) =>            { s.accept(self, env) },
-            s @ Statement::VariableDecl(_, _) =>    { s.accept(self, env) },
-            _s @ Statement::Expression(e) => { e.accept(self, env); InterpreterValue::None },
-            s @ Statement::Block(_) =>              { s.accept(self, env) },
-            s @ Statement::If(_, _, _) =>           { s.accept(self, env) },
-            s @ Statement::Procedure(_, _, _) =>    { s.accept(self, env) },
-            s @ Statement::Call(_, _) =>            { s.accept(self, env) },
-            s @ Statement::RepeatUntil(_, _) =>     { s.accept(self, env) },
-            s @ Statement::RepeatTimes(_, _) =>     { s.accept(self, env) },
-            s @ Statement::Return(_) =>             { s.accept(self, env) },
+            s @ Statement::Display(_) =>                { s.accept(self, env) },
+            s @ Statement::VariableDecl(_, _) =>        { s.accept(self, env) },
+            _s @ Statement::Expression(e) =>     { e.accept(self, env); InterpreterValue::None },
+            s @ Statement::Block(_) =>                  { s.accept(self, env) },
+            s @ Statement::If(_, _, _) =>               { s.accept(self, env) },
+            s @ Statement::Procedure(_, _, _) =>        { s.accept(self, env) },
+            s @ Statement::Call(_, _) =>                { s.accept(self, env) },
+            s @ Statement::RepeatUntil(_, _) =>         { s.accept(self, env) },
+            s @ Statement::RepeatTimes(_, _) =>         { s.accept(self, env) },
+            s @ Statement::For(_, _, _) =>              { s.accept(self, env) },
+            s @ Statement::Return(_) =>                 { s.accept(self, env) },
+            s @ Statement::ListOperation(_, _, _, _) => { s.accept(self, env) },
+            s @ Statement::ListAccess(_, _, _) =>       { s.accept(self, env) },
             _ => InterpreterValue::None,
         }
     }
@@ -108,6 +113,7 @@ impl Interpreter {
             },
             InterpreterValue::None => "NONE".to_string(),
             InterpreterValue::Function(n, _, p, _) => format!("<fn `{}`>({})", n, p.iter().map(|t| t.clone()).collect::<Vec<String>>().join(", ")),
+            InterpreterValue::List(l) => format!("[{}]", l.iter().map(|t| Self::to_string(t)).collect::<Vec<String>>().join(", ")),
         }
     }
 
@@ -161,7 +167,17 @@ impl ExprVisitor for Interpreter {
                         InterpreterValue::Boolean(!Self::is_truthy(&right))
                     }
 
+                    TokenId::Length => {
+                        if let InterpreterValue::String(s) = right {
+                            return InterpreterValue::Number(s.len() as f64)
+                        } else
 
+                        if let InterpreterValue::List(l) = right {
+                            return InterpreterValue::Number(l.len() as f64)
+                        } else {
+                            panic!("Unary operator expected list but got {:?}", right);
+                        }
+                    }
                     _ => unreachable!("Expected unary operator but got {:?}", operator),
                 }
 
@@ -388,6 +404,47 @@ impl ExprVisitor for Interpreter {
 
         self.call(callee, &args)
     }
+
+    fn visit_list_literal(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
+        let elements = if let Expr::ListLiteral(e) = expr {
+            e
+        } else {
+            unreachable!("Expected list literal expression but got {:?}", expr);
+        };
+
+        let elements = elements
+            .iter()
+            .map(|element| self.evaluate(element, env))
+            .collect::<Vec<_>>();
+
+        InterpreterValue::List(elements)
+    }
+
+    fn visit_get(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
+        println!("visit_get");
+        let (obj, name) = if let Expr::Get(o, n) = expr {
+            (o, n)
+        } else {
+            unreachable!("Expected get expression but got {:?}", expr);
+        };
+
+        let obj = env.get(&obj.lexeme).unwrap();
+        let list = if let InterpreterValue::List(l) = obj {
+            l
+        } else {
+            unreachable!("Expected list but got {:?}", obj);
+        };
+
+        let value = if let InterpreterValue::Number(i) = self.evaluate(name, env) {
+            list[i as usize - 1].clone()
+        } else {
+            unreachable!("Expected number but got {:?}", obj);
+        };
+
+        println!("value: {:?}", value);
+
+        value
+    }
 }
 
 
@@ -493,7 +550,7 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
 
         let mut env = &env.clone();
         let mut ret = InterpreterValue::None;
-        let mut enclosing = env.clone();
+        let mut enclosing = Environment::new();
         loop {
             enclosing = Environment::new_with_parent(env.clone());
             (ret, env) = self.execute_block(&body_stmts, &mut enclosing);
@@ -533,6 +590,47 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
 
         return ret;
     }
+
+    fn visit_for(&mut self, for_statement: &Statement, env: &mut Environment) -> InterpreterValue {
+        let (capture, lst_tok, body) = match for_statement {
+            Statement::For(c, l, b) => (c, l, *b.clone()),
+            _ => unreachable!()
+        };
+
+        let lst = env.get(&lst_tok.lexeme).unwrap();
+        let lst = if let InterpreterValue::List(l) = lst {
+            l
+        } else {
+            unreachable!("Expected list but got {:?}", lst);
+        };
+
+        let body_stmts = if let Statement::Block(v) = body {
+            *v
+        } else { panic!() };
+
+        let mut env = &env.clone();
+        let mut ret = InterpreterValue::None;
+        let mut enclosing = Environment::new();
+
+        let mut new_lst = Vec::new();
+
+        for item in lst {
+            enclosing = Environment::new_with_parent(env.clone());
+            enclosing.define(&capture.lexeme, &item);
+            let (ret, env) = match self.execute_block(&body_stmts, &mut enclosing) {
+                (r, e) => (r, e.clone())
+            };
+
+            let v = enclosing.get(&capture.lexeme).unwrap().clone();
+            new_lst.push(v);
+        }
+
+        self.environment = env.clone();
+        self.environment.set(&lst_tok.lexeme, &InterpreterValue::List(new_lst)).unwrap();
+
+        return ret;
+    }
+
     fn visit_variable_decl(&mut self, variable: &Statement, env: &mut Environment) -> InterpreterValue {
                 
         if let Statement::VariableDecl(name, expr) = variable {
@@ -576,5 +674,92 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
         self.call(&callee_value, &args);
 
         return InterpreterValue::None;
+    }
+
+    fn visit_list_operation(&mut self, append: &Statement, env: &mut Environment) -> InterpreterValue {
+        let (op, name, expr1, expr2) = if let Statement::ListOperation(o, n, e, e2) = append {
+            (o, n, e, e2)
+        } else {
+            unreachable!("Expected append statement but got {:?}", append);
+        };
+
+        let variable = env.get(&name.lexeme)
+            .unwrap_or_else(|| panic!("Undefined variable '{}' ({}, {})", name.lexeme, name.line, name.column));
+        let val1 = if let Some(e) = expr1 {
+            self.evaluate(e, env)
+        } else {
+            InterpreterValue::None
+        };
+        let val2 = if let Some(e) = expr2 {
+            self.evaluate(e, env)
+        } else {
+            InterpreterValue::None
+        };
+
+        let mut list = match variable {
+            InterpreterValue::List(l) => l.clone(),
+            _ => panic!("Expected list but got {:?}", variable)
+        };
+
+        match op.id {
+            TokenId::Append => list.push(val1),
+            TokenId::Insert => {
+                let index = match val1 {
+                    InterpreterValue::Number(n) => n as usize,
+                    _ => panic!("Expected integral value for insert operation")
+                };
+
+                list.insert(index - 1, val2);
+            },
+            TokenId::Remove => {
+                let index = match val1 {
+                    InterpreterValue::Number(n) => n as usize,
+                    _ => panic!("Expected integral value for remove operation")
+                };
+
+                list.remove(index - 1);
+            },
+            TokenId::Length => {
+                let len = list.len();
+                return InterpreterValue::Number(len as f64);
+            },
+            _ => unreachable!()
+        }
+
+        env.set(&name.lexeme, &InterpreterValue::List(list.clone())).unwrap();
+        self.environment = env.clone();
+
+        return InterpreterValue::None;
+    }
+
+    fn visit_list_access(&mut self, access: &Statement, env: &mut Environment) -> InterpreterValue {
+        let (name, index, value) = if let Statement::ListAccess(n, i, v) = access {
+            (n, i, v)
+        } else {
+            unreachable!("Expected list access statement but got {:?}", access);
+        };
+
+        let variable = env.get(&name.lexeme)
+            .unwrap_or_else(|| panic!("Undefined variable '{}' ({}, {})", name.lexeme, name.line, name.column));
+
+
+        let mut list = match variable {
+            InterpreterValue::List(l) => l.clone(),
+            _ => panic!("Expected list but got {:?}", variable)
+        };
+
+        let index = match self.evaluate(index, env) {
+            InterpreterValue::Number(n) => n as usize,
+            _ => panic!("Expected integral value for list access")
+        };
+
+        let value = self.evaluate(value, env);
+
+        list[index - 1] = value;
+
+        env.set(&name.lexeme, &InterpreterValue::List(list.clone())).unwrap();
+        self.environment = env.clone();
+
+        return InterpreterValue::None
     }
 }

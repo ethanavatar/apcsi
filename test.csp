@@ -83,7 +83,7 @@ PROCEDURE Hello(name) {
 }
 
 PROCEDURE nHellos(n) {
-    DISPLAY "passed " + n
+    DISPLAY "passed n=" + n
     i <- 1
     REPEAT (n) TIMES {
         Hello("Sailor " + i)
@@ -100,3 +100,41 @@ PROCEDURE Increment(x) {
 
 ret <- Increment(1)
 DISPLAY "Increment(1) returned " + ret + " (expect: 2)"
+
+lst <- [1, 2, 3]
+DISPLAY lst
+
+DISPLAY "Append 4"
+APPEND lst, 4
+DISPLAY lst
+
+DISPLAY "INSERT 0 at index 1"
+INSERT lst, 1, 0
+DISPLAY lst
+
+DISPLAY "REMOVE 0 from index 1"
+REMOVE lst, 1
+DISPLAY lst
+
+DISPLAY "Fourth element is " + lst[4] + " (expect: 4)"
+
+DISPLAY "Append 0 and change it in-place to 5"
+APPEND lst, 0
+lst[5] <- 5
+DISPLAY lst
+
+// unlke the other list keywords, LENGTH is a unary operator and not a statement
+l <- LENGTH lst
+DISPLAY "Length of lst is " + l + " (expect: 5)"
+
+DISPLAY "BONUS: LENGTH also works on strings"
+DISPLAY "Length of 'Hello, Sailor!' is " + LENGTH "Hello, Sailor!" + " (expect: 14)"
+
+DISPLAY "FOR loop"
+FOR EACH n IN lst {
+    n <- n + 1
+    DISPLAY "n=" + n
+}
+
+DISPLAY "all elements in lst are now incremented by 1"
+DISPLAY lst

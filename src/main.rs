@@ -3,6 +3,7 @@ mod parser;
 mod interpreter;
 mod statement;
 mod environment;
+mod expr;
 
 use clap::Parser;
 

@@ -23,8 +23,17 @@ DISPLAY "The global scope contains name: global=" + global + " (expect: 2), prop
 //DISPLAY local
 
 
-PROCEDURE Hello() {
-    DISPLAY "Hello, Sailor!"
+PROCEDURE Hello(name) {
+    DISPLAY "Hello, " + name + "!"
+}
+
+PROCEDURE nHellos(n) {
+    DISPLAY "passed " + n
+    i <- 1
+    REPEAT (n) TIMES {
+        Hello("Sailor " + i)
+        i <- i + 1
+    }
 }
 
 IF (TRUE)
@@ -82,3 +91,6 @@ REPEAT (5) TIMES {
     DISPLAY "looped " + i + " times"
     i <- i + 1
 }
+
+DISPLAY nHellos
+nHellos(5)

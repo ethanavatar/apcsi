@@ -1,46 +1,7 @@
-use std::fmt::Display;
-
 use crate::scanner::Token;
 use crate::scanner::TokenId;
-
-use crate::interpreter::ExprVisitor;
-use crate::interpreter::InterpreterValue;
+use crate::expr::Expr;
 use crate::statement::Statement;
-
-#[derive(Debug, Clone)]
-pub enum Expr {
-    Binary(Box<Expr>, Token, Box<Expr>),
-    Grouping(Box<Expr>),
-    Literal(Token),
-    Unary(Token, Box<Expr>),
-    Identifier(Token),
-}
-
-impl Expr {
-    pub fn accept(&self, visitor: &mut impl ExprVisitor) -> InterpreterValue {
-        match self {
-            e @ Expr::Binary(_, _, _) => visitor.visit_binary(e),
-            e @ Expr::Grouping(_) => visitor.visit_grouping(e),
-            e @ Expr::Literal(_) => visitor.visit_literal(e),
-            e @ Expr::Unary(_, _) => visitor.visit_unary(e),
-            e @ Expr::Identifier(_) => visitor.visit_identifier(e),
-        }
-    }
-}
-
-impl Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Expr::Binary(left, operator, right) => {
-                write!(f, "({} {} {})", operator.lexeme, left, right)
-            }
-            Expr::Grouping(expr) => write!(f, "(group {})", expr),
-            Expr::Literal(token) => write!(f, "{}", token.lexeme),
-            Expr::Unary(operator, expr) => write!(f, "({} {})", operator.lexeme, expr),
-            Expr::Identifier(token) => unimplemented!("Environment lookup for {}", token.lexeme),
-        }
-    }
-}
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize
@@ -105,25 +66,25 @@ impl Parser {
         Some(Statement::Call(name, params))
     }
 
-    fn parameters(&mut self) -> Vec<Token> {
+    fn parameters(&mut self) -> Vec<Expr> {
         let mut params = Vec::new();
 
         self.consume(TokenId::LParen, "Expected '(' after function name.");
 
         if !self.check(&TokenId::RParen) {
-            todo!("params");
-            /*
             loop {
                 if params.len() >= 255 {
                     panic!("Cannot have more than 255 parameters.");
                 }
-                let param  = self.consume(TokenId::Name(String::new()), "Expected parameter name.");
-                params.push(param.clone());
 
-                if !self.check(&TokenId::Comma) { break; }
-                self.consume(TokenId::Comma, "Expected ',' between parameters.");
+                params.push(
+                    self.expression()
+                );
+
+                if !self.check(&TokenId::Comma) {
+                    break;
+                }
             }
-            */
         }
 
         self.consume(TokenId::RParen, "Expected ')' after parameters.");
@@ -250,7 +211,7 @@ impl Parser {
         self.advance();
 
         self.consume(TokenId::LParen, "Expected '(' after procedure name.");
-        let mut params: Vec<Token> = Vec::new();
+        let mut params: Vec<String> = Vec::new();
 
         if !self.check(&TokenId::RParen) {
             loop {
@@ -265,7 +226,7 @@ impl Parser {
                 };
                 self.advance();
 
-                params.push(param);
+                params.push(param.lexeme.to_owned());
 
                 if !self.match_token(&vec![TokenId::Comma]) {
                     break;

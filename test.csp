@@ -22,20 +22,6 @@ DISPLAY "The global scope contains name: global=" + global + " (expect: 2), prop
 // Crash!
 //DISPLAY local
 
-
-PROCEDURE Hello(name) {
-    DISPLAY "Hello, " + name + "!"
-}
-
-PROCEDURE nHellos(n) {
-    DISPLAY "passed " + n
-    i <- 1
-    REPEAT (n) TIMES {
-        Hello("Sailor " + i)
-        i <- i + 1
-    }
-}
-
 IF (TRUE)
 {
     DISPLAY "Lone IF"
@@ -92,5 +78,25 @@ REPEAT (5) TIMES {
     i <- i + 1
 }
 
+PROCEDURE Hello(name) {
+    DISPLAY "Hello, " + name + "!"
+}
+
+PROCEDURE nHellos(n) {
+    DISPLAY "passed " + n
+    i <- 1
+    REPEAT (n) TIMES {
+        Hello("Sailor " + i)
+        i <- i + 1
+    }
+}
+
 DISPLAY nHellos
 nHellos(5)
+
+PROCEDURE Increment(x) {
+    RETURN x + 1
+}
+
+ret <- Increment(1)
+DISPLAY "Increment(1) returned " + ret + " (expect: 2)"

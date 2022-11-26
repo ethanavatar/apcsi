@@ -150,6 +150,11 @@ impl Parser {
             }
         }
 
+        // Return
+        if let TokenId::Return = self.peek().id {
+            return Some(self.return_statement());
+        }
+
         return Some(self.expression_statement());
     }
 
@@ -239,6 +244,15 @@ impl Parser {
         let body = self.statement().unwrap();
 
         Statement::Procedure(name, params, Box::new(body))
+    }
+
+    fn return_statement(&mut self) -> Statement {
+        let _keyword = self.consume(TokenId::Return, "Expected 'RETURN' keyword.");
+        let value = self.expression();
+
+        self.jump_over_ignored();
+
+        Statement::Return(value)
     }
 
     fn repeat_statement(&mut self) -> Statement {
@@ -345,6 +359,13 @@ impl Parser {
 
     fn check(&self, id: &TokenId) -> bool {
         self.peek().id == *id
+    }
+
+    fn check_next(&self, id: &TokenId) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        self.tokens[self.current + 1].id == *id
     }
 
     fn match_token(&mut self, token_ids: &Vec<TokenId>) -> bool {
@@ -457,10 +478,32 @@ impl Parser {
         }
 
         if let TokenId::Name(_) = self.peek().id {
+            if self.check_next(&TokenId::LParen) {
+                return self.call_expr();
+            }
             return Expr::Identifier(self.advance().clone());
         }
 
         let err = format!("Expect expression. Found: {:?} instead", self.peek());
         panic!("{}", err);
+    }
+
+    fn call_expr(&mut self) -> Expr {
+        let callee = self.advance().clone();
+        self.consume(TokenId::LParen, "Expect '(' after function name.");
+        let mut arguments = Vec::new();
+        if !self.check(&TokenId::RParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    panic!("Cannot have more than 255 arguments.");
+                }
+                arguments.push(self.expression());
+                if !self.match_token(&vec![TokenId::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenId::RParen, "Expect ')' after arguments.");
+        Expr::Call(callee, arguments)
     }
 }

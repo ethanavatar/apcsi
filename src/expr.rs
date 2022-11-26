@@ -11,6 +11,7 @@ pub enum Expr {
     Literal(Token),
     Unary(Token, Box<Expr>),
     Identifier(Token),
+    Call(Token, Vec<Expr>),
 }
 
 pub trait ExprVisitor {
@@ -19,6 +20,7 @@ pub trait ExprVisitor {
     fn visit_unary(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
     fn visit_binary(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
     fn visit_identifier(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
+    fn visit_call(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue;
 }
 
 impl Expr {
@@ -29,6 +31,7 @@ impl Expr {
             e @ Expr::Literal(_) => visitor.visit_literal(e, env),
             e @ Expr::Unary(_, _) => visitor.visit_unary(e, env),
             e @ Expr::Identifier(_) => visitor.visit_identifier(e, env),
+            e @ Expr::Call(_, _) => visitor.visit_call(e, env),
         }
     }
 }
@@ -43,6 +46,13 @@ impl Display for Expr {
             Expr::Literal(token) => write!(f, "{}", token.lexeme),
             Expr::Unary(operator, expr) => write!(f, "({} {})", operator.lexeme, expr),
             Expr::Identifier(token) => unimplemented!("Environment lookup for {}", token.lexeme),
+            Expr::Call(token, args) => {
+                write!(f, "{}(", token.lexeme)?;
+                for arg in args {
+                    write!(f, "{}, ", arg)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }

@@ -2,7 +2,6 @@ use crate::statement::{Statement, StatementVisitor};
 use crate::{scanner::TokenId};
 use crate::environment::Environment;
 use crate::expr::{Expr, ExprVisitor};
-use crate::scanner::Token;
 
 #[derive(Clone, Debug)]
 pub enum InterpreterValue {
@@ -30,30 +29,33 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&mut self, statement: &Statement, env: &mut Environment) -> () {
+    fn execute(&mut self, statement: &Statement, env: &mut Environment) -> InterpreterValue {
         match statement {
-            s @ Statement::Display(_) =>           { s.accept(self, env) },
-            s @ Statement::VariableDecl(_, _) =>   { s.accept(self, env) },
-            s @ Statement::Expression(e) => { e.accept(self, env); },
-            s @ Statement::Block(_) =>             { s.accept(self, env) },
-            s @ Statement::If(_, _, _) =>          { s.accept(self, env) },
-            s @ Statement::Procedure(_, _, _) =>   { s.accept(self, env) },
-            s @ Statement::Call(_, _) =>           { s.accept(self, env) },
-            s @ Statement::RepeatUntil(_, _) =>    { s.accept(self, env) },
-            s @ Statement::RepeatTimes(_, _) =>    { s.accept(self, env) },
-            _ => ()
+            s @ Statement::Display(_) =>            { s.accept(self, env) },
+            s @ Statement::VariableDecl(_, _) =>    { s.accept(self, env) },
+            _s @ Statement::Expression(e) => { e.accept(self, env); InterpreterValue::None },
+            s @ Statement::Block(_) =>              { s.accept(self, env) },
+            s @ Statement::If(_, _, _) =>           { s.accept(self, env) },
+            s @ Statement::Procedure(_, _, _) =>    { s.accept(self, env) },
+            s @ Statement::Call(_, _) =>            { s.accept(self, env) },
+            s @ Statement::RepeatUntil(_, _) =>     { s.accept(self, env) },
+            s @ Statement::RepeatTimes(_, _) =>     { s.accept(self, env) },
+            s @ Statement::Return(_) =>             { s.accept(self, env) },
+            _ => InterpreterValue::None,
         }
     }
 
-    fn execute_block<'a>(&mut self, statements: &Vec<Statement>, environment: &'a mut Environment) -> &'a Environment {
+    fn execute_block<'a>(&mut self, statements: &Vec<Statement>, environment: &'a mut Environment) -> (InterpreterValue, &'a Environment) {
 
         //println!("n defined: {}", environment.is_defined("n"));
 
+        let mut ret = InterpreterValue::None;
+
         for statement in statements {
-            self.execute(statement, environment);
+            ret = self.execute(statement, environment);
         }
 
-        environment.get_parent().unwrap()
+        (ret, environment.get_parent().unwrap())
     }
 
     fn evaluate(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
@@ -109,9 +111,9 @@ impl Interpreter {
         }
     }
 
-    fn call_void(&mut self, func: &InterpreterValue, args: &Vec<InterpreterValue>) -> () {
+    fn call(&mut self, func: &InterpreterValue, args: &Vec<InterpreterValue>) -> InterpreterValue {
         match func {
-            InterpreterValue::Function(name, stmt, p, env) => {
+            InterpreterValue::Function(_name, stmt, p, env) => {
 
                 let mut env = env.clone();
 
@@ -119,7 +121,9 @@ impl Interpreter {
                     env.define(param, &args[i]);
                 }
 
-                self.execute(stmt, &mut env)
+                let ret = self.execute(stmt, &mut env);
+                //println!("{} ret: {:?}", _name, ret);
+                ret
             },
             _ => panic!("Can only call functions"),
         }
@@ -127,7 +131,7 @@ impl Interpreter {
 }
 
 impl ExprVisitor for Interpreter {
-    fn visit_literal(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
+    fn visit_literal(&mut self, expr: &Expr, _env: &Environment) -> InterpreterValue {
         Self::match_literal(expr)
     }
 
@@ -368,41 +372,59 @@ impl ExprVisitor for Interpreter {
             unreachable!("Expected identifier expression but got {:?}", expr);
         }
     }
+
+    fn visit_call(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
+        let (callee, args) = if let Expr::Call(c, a) = expr {
+            (c, a)
+        } else {
+            unreachable!("Expected call expression but got {:?}", expr);
+        };
+
+        let callee = env.get(&callee.lexeme).unwrap();
+        let args = args
+            .iter()
+            .map(|arg| self.evaluate(arg, env))
+            .collect::<Vec<_>>();
+
+        self.call(callee, &args)
+    }
 }
 
 
-impl StatementVisitor<()> for Interpreter {
-    fn visit_expression(&mut self, statement: &Statement, env: &mut Environment) -> () {
+impl StatementVisitor<InterpreterValue> for Interpreter {
+    fn visit_expression(&mut self, statement: &Statement, env: &mut Environment) -> InterpreterValue {
         if let Statement::Expression(expr) = statement {
             self.evaluate(expr, env);
 
-            return;
+            return InterpreterValue::None;
         }
         
         unreachable!("Expected expression statement but got {:?}", statement);
     }
 
-    fn visit_display(&mut self, statement: &Statement, env: &mut Environment) -> () {
+    fn visit_display(&mut self, statement: &Statement, env: &mut Environment) -> InterpreterValue {
         if let Statement::Display(expr) = statement {
             let value = self.evaluate(expr, env);
             println!("{}", Self::to_string(&value));
 
-            return;
+            return InterpreterValue::None;
         }
 
         unreachable!("Expected display statement but got {:?}", statement);
     }
 
-    fn visit_block(&mut self, block: &Statement, env: &mut Environment) -> () {
+    fn visit_block(&mut self, block: &Statement, env: &mut Environment) -> InterpreterValue {
         let statements = if let Statement::Block(s) = block {
             s
         } else {
             unreachable!("Expected block statement but got {:?}", block);
         };
 
-        self.execute_block(statements, &mut Environment::new_with_parent(env.clone()));
+        let (ret, _) = self.execute_block(statements, &mut Environment::new_with_parent(env.clone()));
+
+        return ret;
     }
-    fn visit_if(&mut self, r#if: &Statement, env: &mut Environment) -> () {
+    fn visit_if(&mut self, r#if: &Statement, env: &mut Environment) -> InterpreterValue {
 
         let (
             condition,
@@ -418,8 +440,10 @@ impl StatementVisitor<()> for Interpreter {
         } else if let Some(else_branch) = else_branch {
             self.execute(&else_branch, env);
         }
+
+        return InterpreterValue::None;
     }
-    fn visit_procedure(&mut self, proc: &Statement, env: &mut Environment) -> () {
+    fn visit_procedure(&mut self, proc: &Statement, env: &mut Environment) -> InterpreterValue {
         let (
             name,
             params,
@@ -442,9 +466,20 @@ impl StatementVisitor<()> for Interpreter {
         );
 
         self.environment.define(name.lexeme.clone().as_str(), &procedure);
+
+        return InterpreterValue::None;
     }
-    fn visit_return(&mut self, _return: &Statement, env: &mut Environment) -> () { unimplemented!() }
-    fn visit_repeat_until(&mut self, repeat: &Statement, env: &mut Environment) -> () {
+    fn visit_return(&mut self, r#return: &Statement, env: &mut Environment) -> InterpreterValue {
+        let value = match r#return {
+            Statement::Return(v) => v,
+            _ => unreachable!()
+        };
+
+        let value = self.evaluate(value, env);
+
+        return value
+    }
+    fn visit_repeat_until(&mut self, repeat: &Statement, env: &mut Environment) -> InterpreterValue {
 
         let (break_expr, body) = match repeat {
             Statement::RepeatUntil(e, b) => (e, *b.clone()),
@@ -456,17 +491,23 @@ impl StatementVisitor<()> for Interpreter {
             _ => panic!()
         };
 
-        let mut env = env.clone();
+        let mut env = &env.clone();
+        let mut ret = InterpreterValue::None;
+        let mut enclosing = env.clone();
         loop {
-            env = self.execute_block(&body_stmts, &mut Environment::new_with_parent(env.clone())).clone();
+            enclosing = Environment::new_with_parent(env.clone());
+            (ret, env) = self.execute_block(&body_stmts, &mut enclosing);
             
             let cond = self.evaluate(break_expr, &env);
             if Self::is_truthy(&cond) {
                 break;
             }
         }
+
+        return ret;
     }
-    fn visit_repeat_times(&mut self, repeat: &Statement, env: &mut Environment) -> () {
+
+    fn visit_repeat_times(&mut self, repeat: &Statement, env: &mut Environment) -> InterpreterValue {
 
         let (times, body) = match repeat {
             Statement::RepeatTimes(e, b) => (e, *b.clone()),
@@ -482,13 +523,17 @@ impl StatementVisitor<()> for Interpreter {
             *v
         } else { panic!() };
 
-        let mut env = env.clone();
+        let mut env = &env.clone();
+        let mut ret = InterpreterValue::None;
+        let mut enclosing = env.clone();
         for _ in 0..times {
-            env = self.execute_block(&body_stmts, &mut Environment::new_with_parent(env.clone())).clone();
+            enclosing = Environment::new_with_parent(env.clone());
+            (ret, env) = self.execute_block(&body_stmts, &mut enclosing);
         }
 
+        return ret;
     }
-    fn visit_variable_decl(&mut self, variable: &Statement, env: &mut Environment) -> () {
+    fn visit_variable_decl(&mut self, variable: &Statement, env: &mut Environment) -> InterpreterValue {
                 
         if let Statement::VariableDecl(name, expr) = variable {
 
@@ -496,7 +541,7 @@ impl StatementVisitor<()> for Interpreter {
 
             if env.is_defined(&name.lexeme) {
                 env.set(&name.lexeme, &value).unwrap();
-                return;
+                return InterpreterValue::None;
             }
 
             env.define(name.lexeme.clone().as_str(), &value);
@@ -507,9 +552,10 @@ impl StatementVisitor<()> for Interpreter {
             unreachable!("Expected variable statement but got {:?}", variable);
         }
 
+        return InterpreterValue::None;
     }
 
-    fn visit_call(&mut self, call: &Statement, env: &mut Environment) -> () {
+    fn visit_call(&mut self, call: &Statement, env: &mut Environment) -> InterpreterValue {
         let (callee, args) = if let Statement::Call(c, a) = call {
             (c, a)
         } else {
@@ -523,10 +569,12 @@ impl StatementVisitor<()> for Interpreter {
             val.clone()
         };
 
-        let mut args = args.iter()
+        let args = args.iter()
             .map(|arg| self.evaluate(arg, env))
             .collect::<Vec<_>>();
 
-        self.call_void(&callee_value, &args);
+        self.call(&callee_value, &args);
+
+        return InterpreterValue::None;
     }
 }

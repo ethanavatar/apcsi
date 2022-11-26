@@ -6,9 +6,9 @@ The language specification can be found [here](https://apcentral.collegeboard.or
 
 ## To-Do
 
-This tool is VERY incomplete and VERY buggy. Here's a list of things that need to be done:
+This tool can be treated as untested and incomplete. Aside from general bugginess, these are the next things to do:
 
-- [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place without syncronization)
+- [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place without synchronization)
 - [ ] Make more examples
 - [ ] Add more tests
 

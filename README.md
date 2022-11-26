@@ -14,6 +14,8 @@ This tool can be treated as untested and incomplete. Aside from general buggines
 
 ## Installation
 
+Install using [Rust Cargo](https://www.rust-lang.org/tools/install):
+
 ```bash
 $ git clone https://github.com/ethanavatar/apcsi.git
 $ cd apcsi

@@ -138,3 +138,6 @@ FOR EACH n IN lst {
 
 DISPLAY "all elements in lst are now incremented by 1"
 DISPLAY lst
+
+ch <- "abc"
+DISPLAY "The third character in 'abc' is " + ch[3] + " (expect: c)"

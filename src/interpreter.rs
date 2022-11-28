@@ -1,4 +1,3 @@
-use crate::scanner::Token;
 use crate::statement::{Statement, StatementVisitor};
 use crate::{scanner::TokenId};
 use crate::environment::Environment;
@@ -12,6 +11,73 @@ pub enum InterpreterValue {
     Function(String, Statement, Vec<String>, Environment),
     List(Vec<InterpreterValue>),
     None,
+}
+
+impl InterpreterValue {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            InterpreterValue::Number(n) => *n != 0.0,
+            InterpreterValue::String(s) => !s.is_empty(),
+            InterpreterValue::Boolean(b) => *b,
+            InterpreterValue::Function(_, _, _, _) => true, // This might be the wrong thing to do
+            InterpreterValue::List(l) => !l.is_empty(),
+            InterpreterValue::None => false,
+        }
+    }
+
+    pub fn is_equal(&self, other: &InterpreterValue) -> bool {
+        match (self, other) {
+            (InterpreterValue::Number(n1), InterpreterValue::Number(n2)) => n1 == n2,
+            (InterpreterValue::String(s1), InterpreterValue::String(s2)) => s1 == s2,
+            (InterpreterValue::Boolean(b1), InterpreterValue::Boolean(b2)) => b1 == b2,
+            (InterpreterValue::Function(_, _, _, _), InterpreterValue::Function(_, _, _, _)) => {
+                // what if they're the same function?
+                false
+            }
+            (InterpreterValue::List(l1), InterpreterValue::List(l2)) => {
+                //l1 == l2
+                panic!("Can't compare lists yet")
+            },
+            (InterpreterValue::None, InterpreterValue::None) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_indexable(&self) -> bool {
+        match self {
+            InterpreterValue::String(_) => true,
+            InterpreterValue::List(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get(&self, i: usize) -> Option<InterpreterValue> {
+        if self.is_indexable() {
+            match self {
+                InterpreterValue::String(s) => s.chars().nth(i).map(|c| InterpreterValue::String(c.to_string())),
+                InterpreterValue::List(l) => l.get(i).cloned(),
+                _ => None,
+            }
+        } else {
+            panic!("Cannot index non-indexable value");
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            InterpreterValue::Number(n) => n.to_string(),
+            InterpreterValue::String(s) => s.clone(),
+            InterpreterValue::Boolean(b) => {
+                match b {
+                    true => "TRUE".to_string(),
+                    false => "FALSE".to_string(),
+                }
+            },
+            InterpreterValue::None => "NONE".to_string(),
+            InterpreterValue::Function(n, _, p, _) => format!("<fn `{}`>({})", n, p.iter().map(|t| t.clone()).collect::<Vec<String>>().join(", ")),
+            InterpreterValue::List(l) => format!("[{}]", l.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")),
+        }
+    }
 }
 
 pub struct Interpreter {
@@ -46,7 +112,7 @@ impl Interpreter {
             s @ Statement::Return(_) =>                 { s.accept(self, env) },
             s @ Statement::ListOperation(_, _, _, _) => { s.accept(self, env) },
             s @ Statement::ListAccess(_, _, _) =>       { s.accept(self, env) },
-            _ => InterpreterValue::None,
+            _ => unreachable!("non-exhaustive match"),
         }
     }
 
@@ -83,40 +149,6 @@ impl Interpreter {
         }
     }
 
-    fn is_truthy(value: &InterpreterValue) -> bool {
-        match value {
-            InterpreterValue::None => false,
-            InterpreterValue::Boolean(b) => *b,
-            _ => true,
-        }
-    }
-
-    fn is_equal(a: &InterpreterValue, b: &InterpreterValue) -> bool {
-        match (a, b) {
-            (InterpreterValue::Number(a), InterpreterValue::Number(b)) => a == b,
-            (InterpreterValue::String(a), InterpreterValue::String(b)) => a == b,
-            (InterpreterValue::Boolean(a), InterpreterValue::Boolean(b)) => a == b,
-            (InterpreterValue::None, InterpreterValue::None) => true,
-            _ => false,
-        }
-    }
-
-    fn to_string(value: &InterpreterValue) -> String {
-        match value {
-            InterpreterValue::Number(n) => n.to_string(),
-            InterpreterValue::String(s) => s.clone(),
-            InterpreterValue::Boolean(b) => {
-                match b {
-                    true => "TRUE".to_string(),
-                    false => "FALSE".to_string(),
-                }
-            },
-            InterpreterValue::None => "NONE".to_string(),
-            InterpreterValue::Function(n, _, p, _) => format!("<fn `{}`>({})", n, p.iter().map(|t| t.clone()).collect::<Vec<String>>().join(", ")),
-            InterpreterValue::List(l) => format!("[{}]", l.iter().map(|t| Self::to_string(t)).collect::<Vec<String>>().join(", ")),
-        }
-    }
-
     fn call(&mut self, func: &InterpreterValue, args: &Vec<InterpreterValue>) -> InterpreterValue {
         match func {
             InterpreterValue::Function(_name, stmt, p, env) => {
@@ -128,7 +160,6 @@ impl Interpreter {
                 }
 
                 let ret = self.execute(stmt, &mut env);
-                //println!("{} ret: {:?}", _name, ret);
                 ret
             },
             _ => panic!("Can only call functions"),
@@ -164,7 +195,7 @@ impl ExprVisitor for Interpreter {
                     }
 
                     TokenId::Bang => {
-                        InterpreterValue::Boolean(!Self::is_truthy(&right))
+                        InterpreterValue::Boolean(!right.is_truthy())
                     }
 
                     TokenId::Length => {
@@ -267,8 +298,8 @@ impl ExprVisitor for Interpreter {
                                 panic!("Binary operator expected number but got {:?}", right);
                             }
                         } else {
-                            let right = Self::to_string(&right);
-                            let left = Self::to_string(&left);
+                            let right = right.to_string();
+                            let left = left.to_string();
 
                             // The actual return value
                             return InterpreterValue::String(format!("{}{}", left, right))
@@ -354,13 +385,13 @@ impl ExprVisitor for Interpreter {
 
 
                     TokenId::BangEqual => {
-                        InterpreterValue::Boolean(!Self::is_equal(&left, &right))
+                        InterpreterValue::Boolean(!left.is_equal(&right))
                     }
 
 
 
                     TokenId::Equal => {
-                        InterpreterValue::Boolean(Self::is_equal(&left, &right))
+                        InterpreterValue::Boolean(left.is_equal(&right))
                     }
 
 
@@ -420,28 +451,25 @@ impl ExprVisitor for Interpreter {
         InterpreterValue::List(elements)
     }
 
-    fn visit_get(&mut self, expr: &Expr, env: &Environment) -> InterpreterValue {
-        println!("visit_get");
+    fn visit_get(&mut self, expr: &Expr, env: &Environment) -> Option<InterpreterValue> {
         let (obj, name) = if let Expr::Get(o, n) = expr {
             (o, n)
         } else {
             unreachable!("Expected get expression but got {:?}", expr);
         };
 
-        let obj = env.get(&obj.lexeme).unwrap();
-        let list = if let InterpreterValue::List(l) = obj {
-            l
-        } else {
-            unreachable!("Expected list but got {:?}", obj);
-        };
-
-        let value = if let InterpreterValue::Number(i) = self.evaluate(name, env) {
-            list[i as usize - 1].clone()
+        let index = if let InterpreterValue::Number(i) = self.evaluate(name, env) {
+            i as usize - 1
         } else {
             unreachable!("Expected number but got {:?}", obj);
         };
 
-        println!("value: {:?}", value);
+        let obj = env.get(&obj.lexeme).unwrap();
+        let value = if obj.is_indexable() {
+            obj.get(index)
+        } else {
+            unreachable!("Expected indexable but got {:?}", obj);
+        };
 
         value
     }
@@ -462,7 +490,7 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
     fn visit_display(&mut self, statement: &Statement, env: &mut Environment) -> InterpreterValue {
         if let Statement::Display(expr) = statement {
             let value = self.evaluate(expr, env);
-            println!("{}", Self::to_string(&value));
+            println!("{}", value.to_string());
 
             return InterpreterValue::None;
         }
@@ -492,7 +520,9 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
             _ => unreachable!()
         };
 
-        if Self::is_truthy(&self.evaluate(condition, env)) {
+        let condition = self.evaluate(condition, env);
+
+        if condition.is_truthy() {
             self.execute(then_branch, env);
         } else if let Some(else_branch) = else_branch {
             self.execute(&else_branch, env);
@@ -550,14 +580,15 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
 
         let mut env = &env.clone();
         let mut ret = InterpreterValue::None;
-        let mut enclosing = Environment::new();
+        let mut enclosing = Environment::new_with_parent(env.clone());
         loop {
-            enclosing = Environment::new_with_parent(env.clone());
             (ret, env) = self.execute_block(&body_stmts, &mut enclosing);
             
             let cond = self.evaluate(break_expr, &env);
-            if Self::is_truthy(&cond) {
+            if cond.is_truthy() {
                 break;
+            } else {
+                enclosing = Environment::new_with_parent(env.clone());
             }
         }
 
@@ -582,10 +613,13 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
 
         let mut env = &env.clone();
         let mut ret = InterpreterValue::None;
-        let mut enclosing = env.clone();
-        for _ in 0..times {
-            enclosing = Environment::new_with_parent(env.clone());
+        let mut enclosing = Environment::new_with_parent(env.clone());
+        for i in 0..times {
             (ret, env) = self.execute_block(&body_stmts, &mut enclosing);
+
+            if i != times - 1 {
+                enclosing = Environment::new_with_parent(env.clone());
+            }
         }
 
         return ret;
@@ -608,21 +642,24 @@ impl StatementVisitor<InterpreterValue> for Interpreter {
             *v
         } else { panic!() };
 
-        let mut env = &env.clone();
+        let mut env = env.clone();
         let mut ret = InterpreterValue::None;
-        let mut enclosing = Environment::new();
+        let mut enclosing = Environment::new_with_parent(env.clone());
 
         let mut new_lst = Vec::new();
 
-        for item in lst {
-            enclosing = Environment::new_with_parent(env.clone());
+        for (i, item) in lst.iter().enumerate() {
             enclosing.define(&capture.lexeme, &item);
-            let (ret, env) = match self.execute_block(&body_stmts, &mut enclosing) {
+            (ret, env) = match self.execute_block(&body_stmts, &mut enclosing) {
                 (r, e) => (r, e.clone())
             };
 
             let v = enclosing.get(&capture.lexeme).unwrap().clone();
             new_lst.push(v);
+
+            if i != lst.len() - 1 {
+                enclosing = Environment::new_with_parent(env.clone());
+            }
         }
 
         self.environment = env.clone();

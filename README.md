@@ -9,6 +9,8 @@ The language specification can be found [here](https://apcentral.collegeboard.or
 This tool can be treated as untested and incomplete. Aside from general bugginess, these are the next things to do:
 
 - [ ] Properly catch, recover, and report runtime errors (currently, the interpreter just crashes in-place without synchronization)
+- [ ] `NOT` operator
+- [ ] `CONTINUE`, `BREAK`, and `RETURN` statements
 - [ ] Make more examples
 - [ ] Add more tests
 

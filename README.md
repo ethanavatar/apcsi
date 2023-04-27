@@ -4,6 +4,8 @@ An interpreter for the College Board's AP Computer Science Principles pseudocode
 
 The language specification can be found [here](https://apcentral.collegeboard.org/media/pdf/ap-computer-science-principles-exam-reference-sheet.pdf).
 
+This interpreter is a Tree-Walk style interpreter as demonstrated in [Crafting Interpreters](https://craftinginterpreters.com).
+
 ## To-Do
 
 This tool can be treated as untested and incomplete. Aside from general bugginess, these are the next things to do:
